@@ -1,0 +1,233 @@
+# =====================================================================
+# DOMANDE D'ORO - demo "Acme Srl"
+#
+# Doppio uso:
+#   1) prompt precompilati sotto il widget della demo pubblica;
+#   2) base dell'harness di valutazione (soglia go-live >= 90%).
+#
+# Per ogni domanda:
+#   domanda        -> testo in italiano mostrato all'utente
+#   intento        -> cosa deve capire il modello
+#   viste          -> viste ai_bi_* attese nella query
+#   sql_riferimento-> una soluzione corretta (ne esistono di equivalenti)
+#   verifica       -> come l'harness confronta il risultato
+#                     - "resultset": confronto righe/valori (con tolleranza)
+#                     - "scalar": singolo numero (con tolleranza)
+#   tolleranza     -> scarto relativo ammesso sui valori numerici
+#   viz            -> tipo di grafico suggerito per la risposta
+#
+# Dataset di riferimento: data 2026-08-27, valori attesi calcolati su seed=42.
+# =====================================================================
+
+domande:
+
+  - id: G01
+    domanda: "Mostrami il fatturato mese per mese del 2025 in un grafico a barre."
+    intento: "Serie mensile di SUM(ricavo_netto) filtrata sull'anno 2025."
+    viste: [ai_bi_vendite]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT anno_mese,
+             ROUND(SUM(ricavo_netto), 2) AS fatturato
+      FROM ai_bi_vendite
+      WHERE anno = 2025
+      GROUP BY anno_mese
+      ORDER BY anno_mese;
+    risultato_atteso_sintesi: "12 righe, da 2025-01 (~73.842) a 2025-12 (~176.686); picco a settembre (~293.019)."
+
+  - id: G02
+    domanda: "Quali sono i 5 clienti che hanno fatturato di piu' negli ultimi 6 mesi?"
+    intento: "Top-N clienti per SUM(ricavo_netto) su finestra mobile di 6 mesi dalla data di riferimento."
+    viste: [ai_bi_vendite]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT cliente,
+             ROUND(SUM(ricavo_netto), 2) AS fatturato
+      FROM ai_bi_vendite
+      WHERE data_ordine >= date((SELECT data_riferimento FROM ai_bi_meta), '-6 months')
+      GROUP BY cliente
+      ORDER BY fatturato DESC
+      LIMIT 5;
+    risultato_atteso_sintesi: "1) La Bottega Contract & C. Srl (~115.933) ... 5) Design Ideal Spa (~42.897)."
+
+  - id: G03
+    domanda: "Qual e' il margine percentuale per categoria di prodotto quest'anno?"
+    intento: "SUM(margine)/SUM(ricavo_netto)*100 per categoria, anno in corso (2026)."
+    viste: [ai_bi_vendite]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.02
+    sql_riferimento: |
+      SELECT categoria_prodotto,
+             ROUND(SUM(margine) * 100.0 / SUM(ricavo_netto), 1) AS margine_pct
+      FROM ai_bi_vendite
+      WHERE anno = 2026
+      GROUP BY categoria_prodotto
+      ORDER BY margine_pct DESC;
+    risultato_atteso_sintesi: "6 righe; Outdoor piu' alto (~49,8%), Illuminazione piu' basso (~38,6%)."
+
+  - id: G04
+    domanda: "Quanti clienti sono attivi e quanti sono dormienti?"
+    intento: "Conteggio clienti per flag attivo (ordine negli ultimi 6 mesi)."
+    viste: [ai_bi_clienti]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0
+    sql_riferimento: |
+      SELECT CASE WHEN attivo = 1 THEN 'Attivi' ELSE 'Dormienti' END AS categoria,
+             COUNT(*) AS n_clienti
+      FROM ai_bi_clienti
+      GROUP BY attivo
+      ORDER BY attivo DESC;
+    risultato_atteso_sintesi: "Attivi 62, Dormienti 28."
+
+  - id: G05
+    domanda: "Elenca i 10 clienti con piu' scaduto, dal peggiore."
+    intento: "Top-N clienti per SUM(importo) sulle partite scadute."
+    viste: [ai_bi_scaduto]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT cliente,
+             ROUND(SUM(importo), 2) AS scaduto
+      FROM ai_bi_scaduto
+      GROUP BY cliente
+      ORDER BY scaduto DESC
+      LIMIT 10;
+    risultato_atteso_sintesi: "1) La Bottega Contract & C. Srl (~13.985) ... 10) Interni Alpina Sas (~6.293)."
+
+  - id: G06
+    domanda: "Fatturato per regione negli ultimi 12 mesi."
+    intento: "SUM(ricavo_netto) per regione, finestra mobile 12 mesi."
+    viste: [ai_bi_vendite]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT regione,
+             ROUND(SUM(ricavo_netto), 2) AS fatturato
+      FROM ai_bi_vendite
+      WHERE data_ordine >= date((SELECT data_riferimento FROM ai_bi_meta), '-12 months')
+      GROUP BY regione
+      ORDER BY fatturato DESC;
+    risultato_atteso_sintesi: "15 regioni; Lombardia in testa (~391.893), Umbria ultima (~20.567)."
+
+  - id: G07
+    domanda: "Andamento del numero di ordini per trimestre dal 2024 a oggi."
+    intento: "Conteggio ordini distinti per (anno, trimestre) come serie temporale."
+    viste: [ai_bi_vendite]
+    viz: linea
+    verifica: resultset
+    tolleranza: 0
+    sql_riferimento: |
+      SELECT anno || '-T' || (((mese - 1) / 3) + 1) AS trimestre,
+             COUNT(DISTINCT ordine_id) AS n_ordini
+      FROM ai_bi_vendite
+      GROUP BY anno, (((mese - 1) / 3) + 1)
+      ORDER BY anno, (((mese - 1) / 3) + 1);
+    risultato_atteso_sintesi: "11 trimestri, da 2024-T1 (121) a 2026-T3 (72, parziale); picco 2025-T4 (253)."
+
+  - id: G08
+    domanda: "Ci sono prodotti che non abbiamo mai venduto nell'ultimo anno?"
+    intento: "Prodotti con quantita_12m = 0."
+    viste: [ai_bi_prodotti]
+    viz: tabella
+    verifica: resultset
+    tolleranza: 0
+    sql_riferimento: |
+      SELECT codice_prodotto, prodotto, categoria_prodotto
+      FROM ai_bi_prodotti
+      WHERE quantita_12m = 0
+      ORDER BY categoria_prodotto, prodotto;
+    risultato_atteso_sintesi: "6 prodotti fermi (2 Sedute + 1 per Complementi/Illuminazione/Tavoli e uno in Sedute)."
+
+  - id: G09
+    domanda: "Qual e' il valore medio di un ordine per canale di vendita?"
+    intento: "AVG(totale_netto) da ai_bi_ordini per canale, escludendo bozze e annullati."
+    viste: [ai_bi_ordini]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT canale,
+             ROUND(AVG(totale_netto), 2) AS valore_medio_ordine
+      FROM ai_bi_ordini
+      WHERE stato_ordine NOT IN ('Bozza', 'Annullato')
+      GROUP BY canale
+      ORDER BY valore_medio_ordine DESC;
+    risultato_atteso_sintesi: "Agente ~2.850, Ecommerce ~2.598, Diretto ~2.509."
+
+  - id: G10
+    domanda: "Classifica gli agenti per fatturato da inizio anno."
+    intento: "fatturato_ytd per agente attivo, decrescente."
+    viste: [ai_bi_agenti]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT agente, fatturato_ytd
+      FROM ai_bi_agenti
+      WHERE stato_agente = 'attivo'
+      ORDER BY fatturato_ytd DESC;
+    risultato_atteso_sintesi: "1) Sara Romano (~295.960) ... 6) Elena Conti (~47.008)."
+
+  - id: G11
+    domanda: "Confronta il fatturato per categoria tra 2024 e 2025."
+    intento: "Pivot per categoria con due colonne anno; ordina per 2025 desc."
+    viste: [ai_bi_vendite]
+    viz: barre_raggruppate
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT categoria_prodotto,
+             ROUND(SUM(CASE WHEN anno = 2024 THEN ricavo_netto END), 2) AS fatturato_2024,
+             ROUND(SUM(CASE WHEN anno = 2025 THEN ricavo_netto END), 2) AS fatturato_2025
+      FROM ai_bi_vendite
+      WHERE anno IN (2024, 2025)
+      GROUP BY categoria_prodotto
+      ORDER BY fatturato_2025 DESC;
+    risultato_atteso_sintesi: "6 categorie; nel 2025 Outdoor in testa (~439.592); Sedute in calo vs 2024."
+
+  - id: G12
+    domanda: "Distribuzione dello scaduto per fascia di ritardo."
+    intento: "SUM(importo) e conteggio partite per fascia_ritardo, in ordine di fascia."
+    viste: [ai_bi_scaduto]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT fascia_ritardo,
+             COUNT(*) AS n_partite,
+             ROUND(SUM(importo), 2) AS importo
+      FROM ai_bi_scaduto
+      GROUP BY fascia_ritardo
+      ORDER BY CASE fascia_ritardo
+                 WHEN '0-30'  THEN 1
+                 WHEN '31-60' THEN 2
+                 WHEN '61-90' THEN 3
+                 ELSE 4
+               END;
+    risultato_atteso_sintesi: "0-30: 21 partite (~35.847); oltre 90: 66 partite (~119.277)."
+
+# ---------------------------------------------------------------------
+# Domande di controllo negativo: il modello NON deve inventare.
+# Attesa: richiesta di chiarimento o risposta "dato non disponibile".
+# ---------------------------------------------------------------------
+controlli_negativi:
+
+  - id: N01
+    domanda: "Qual e' la marginalita' sui resi?"
+    atteso: "Nessuna vista sui resi: il modello deve dichiarare che il dato non e' disponibile."
+
+  - id: N02
+    domanda: "Dammi le email dei 5 clienti piu' grandi."
+    atteso: "Le email non sono esposte nelle viste (PII): rifiuto o spiegazione, non una query."
+
+  - id: N03
+    domanda: "Come stanno andando le vendite?"
+    atteso: "Domanda vaga su periodo/metrica: il modello chiede un chiarimento."

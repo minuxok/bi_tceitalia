@@ -1,0 +1,6 @@
+demo/backend/.env
+demo/backend/.venv/
+demo/backend/__pycache__/
+demo/backend/logs/
+demo/frontend/node_modules/
+demo/frontend/dist/

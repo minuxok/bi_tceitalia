@@ -1,0 +1,130 @@
+# =====================================================================
+# GLOSSARIO SEMANTICO - demo "Acme Srl"
+#
+# Viene iniettato nel system prompt del motore Text-to-SQL.
+# Ogni voce traduce un termine di business in una definizione operativa
+# sulle viste ai_bi_*. In produzione questo file e' versionato per cliente.
+#
+# Data di riferimento del dataset: 2026-08-27
+# (nelle viste: (SELECT data_riferimento FROM ai_bi_meta))
+# =====================================================================
+
+termini:
+
+  fatturato: >
+    SUM(ricavo_netto) dalla vista ai_bi_vendite. E' l'imponibile (IVA esclusa),
+    al netto degli sconti di riga. Esclude ordini in bozza e annullati.
+
+  fatturato lordo IVA: >
+    fatturato * 1,22 (aliquota unica 22% in questo dataset), oppure
+    SUM(totale_ivato) da ai_bi_ordini.
+
+  incassato / incassi / cassa / quanto abbiamo incassato: >
+    Le viste NON tracciano gli incassi effettivi (pagamenti realmente ricevuti):
+    esistono solo il fatturato (ai_bi_vendite) e le partite gia' scadute e non
+    incassate (ai_bi_scaduto). Se l'utente parla di "incassato/incassi" senza
+    altra precisazione, NON assumere che intenda il fatturato: rispondi con
+    tipo = "chiarimento" chiedendo se intende il fatturato oppure gli incassi
+    reali (questi ultimi non disponibili nel dataset).
+
+  margine: >
+    SUM(margine) da ai_bi_vendite, cioe' ricavo_netto - costo, dove
+    costo = quantita * costo_medio del prodotto.
+
+  margine percentuale: >
+    SUM(margine) / SUM(ricavo_netto) * 100 sulla vista ai_bi_vendite.
+
+  ordine: >
+    riga di ai_bi_ordini. Il "numero ordine" ha formato ANNO/NNNNN.
+
+  valore medio ordine (AOV): >
+    AVG(totale_netto) da ai_bi_ordini, considerando solo stati diversi da
+    'Bozza' e 'Annullato'.
+
+  cliente attivo: >
+    cliente con almeno un ordine (non bozza/annullato) negli ultimi 6 mesi
+    rispetto alla data di riferimento. In ai_bi_clienti: attivo = 1.
+
+  cliente dormiente: >
+    cliente con attivo = 0 in ai_bi_clienti (nessun ordine negli ultimi 6 mesi)
+    ma con almeno un ordine storico (num_ordini_totali > 0).
+
+  cliente perso / churn: >
+    cliente senza ordini da oltre 12 mesi. In ai_bi_clienti:
+    ultimo_ordine < date(riferimento, '-12 months').
+
+  nuovo cliente: >
+    cliente la cui data_acquisizione (o primo_ordine) cade nell'anno in corso.
+
+  scaduto: >
+    SUM(importo) da ai_bi_scaduto: scadenze non incassate con data_scadenza
+    precedente alla data di riferimento. Sinonimi: insoluto, crediti scaduti,
+    partite scadute.
+
+  scaduto grave: >
+    righe di ai_bi_scaduto con fascia_ritardo = 'oltre 90' (oltre 90 giorni).
+
+  DSO indicativo: >
+    non calcolabile con precisione in demo; approssimare con la media di
+    giorni_ritardo su ai_bi_scaduto solo se richiesto esplicitamente.
+
+  anno in corso / anno corrente / YTD: >
+    anno = EXTRACT(YEAR dalla data di riferimento) = 2026.
+    Su ai_bi_vendite usare la colonna anno.
+
+  anno scorso: >
+    anno = 2025.
+
+  ultimi 6 mesi: >
+    data_ordine >= date((SELECT data_riferimento FROM ai_bi_meta), '-6 months').
+
+  ultimi 12 mesi / ultimo anno: >
+    data_ordine >= date((SELECT data_riferimento FROM ai_bi_meta), '-12 months').
+
+  trimestre: >
+    raggruppare per (anno, ((mese - 1) / 3) + 1). Etichetta in formato ordinabile
+    cronologicamente: anno || '-T' || (((mese - 1) / 3) + 1), es. '2024-T1'.
+
+  agente / venditore / commerciale: >
+    campo agente in ai_bi_vendite e ai_bi_ordini; anagrafica in ai_bi_agenti.
+    Gli ordini a canale 'Ecommerce' non hanno agente (agente IS NULL).
+
+  area / zona: >
+    area_agente in ai_bi_vendite (Nord-Ovest, Nord-Est, Centro, Sud e Isole).
+    Da non confondere con "regione" (Lombardia, Lazio, ...) che e' geografica.
+
+  categoria: >
+    categoria_prodotto in ai_bi_vendite / ai_bi_prodotti
+    (Sedute, Tavoli, Contenitori, Illuminazione, Complementi, Outdoor).
+
+  prodotto fermo / invenduto: >
+    prodotto con quantita_12m = 0 in ai_bi_prodotti.
+
+  best seller: >
+    prodotti ordinati per quantita_12m o fatturato_12m decrescente in ai_bi_prodotti.
+
+note_per_il_modello:
+  - Usa SEMPRE e solo le viste con prefisso ai_bi_. Non esistono altre tabelle.
+  - Non usare le colonne email/telefono/partita_iva: non sono esposte nelle viste.
+  - Per le date usa le funzioni SQLite (date(), strftime()), non sintassi Postgres.
+  - Il termine "fatturato" senza altra specifica = imponibile (ricavo_netto), non IVA inclusa.
+  - >-
+    Se la domanda non indica un periodo, NON inventare un filtro temporale;
+    usa tutti i dati disponibili nella vista. Aggiungi un filtro di data solo
+    se la domanda lo chiede (es. "nel 2025", "ultimi 6 mesi") o implica
+    chiaramente la recency (es. "attualmente", "di recente", "ad oggi").
+  - >-
+    Se la domanda e' vaga su PIU' aspetti insieme (sia periodo sia metrica,
+    come "come stanno andando le vendite?"), fai una domanda di chiarimento
+    invece di indovinare.
+  - >-
+    Se la domanda e' ambigua su un termine non presente nel glossario,
+    fai una domanda di chiarimento invece di indovinare.
+  - >-
+    Quando la domanda chiede di CONFRONTARE una metrica tra due (o piu')
+    periodi o valori specifici (es. "confronta il fatturato per categoria
+    tra 2024 e 2025"), restituisci un PIVOT: una riga per dimensione con una
+    colonna numerica per ciascun periodo
+    (SUM(CASE WHEN anno = 2024 THEN ricavo_netto END) AS fatturato_2024, ...),
+    NON una riga per (dimensione, periodo). Ordina per il periodo piu' recente
+    decrescente e imposta viz.tipo = "barre_raggruppate".

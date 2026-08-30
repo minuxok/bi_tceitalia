@@ -1,0 +1,16 @@
+/* Reset minimo per la pagina di sviluppo. Il widget porta i propri stili
+   (widget.css), confinati sotto .cbi-root. */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: #fbfbf9;
+}
