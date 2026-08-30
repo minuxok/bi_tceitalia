@@ -7,7 +7,7 @@ export default function App() {
   return (
     <div className="host">
       <header className="host-nav">
-        <strong>Acme Analytics</strong>
+        <strong>TCE Analytics System</strong>
         <nav>
           <a href="#prodotto">Prodotto</a>
           <a href="#sicurezza">Sicurezza</a>
@@ -40,7 +40,7 @@ export default function App() {
       </main>
 
       <footer className="host-foot" id="contatti">
-        © Acme Analytics — pagina dimostrativa
+        © TCE Analytics System — pagina dimostrativa
       </footer>
     </div>
   )
