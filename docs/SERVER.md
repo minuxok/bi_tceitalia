@@ -6,7 +6,7 @@
 > **Porta backend:** `3005` (3000=tagnest, 3001=cultural-invaders-next, 3002/3003=visitnove-api e un'altra app, 3004=industriale-3d — verifica con `pm2 status` prima di assumerla libera)
 > **Database:** SQLite, file `demo/db/acme.db` dentro il repo
 > **Accesso SSH:** Putty → `193.70.38.117` porta `22`, utente da definire (stesso utente delle altre app su questo VPS, es. `ubuntu`)
-> **Repo:** da creare — vedi sez. 0 (questo progetto oggi non è ancora un repo git)
+> **Repo:** https://github.com/minuxok/bi_tceitalia — branch `dev` (attivo), `main` (baseline)
 
 A differenza di poloniato100 (SPA statica pura, nessun processo a runtime), questa app **ha un backend Python persistente** (FastAPI + LLM via LiteLLM), quindi il pattern è ibrido:
 - **Frontend** (`demo/frontend/dist`) → file statici, serviti da Apache come document root (come poloniato100).
@@ -14,39 +14,9 @@ A differenza di poloniato100 (SPA statica pura, nessun processo a runtime), ques
 
 ---
 
-## 0. Prerequisito: creare il repo git (questo progetto non ce l'ha ancora)
+## 0. Repo git — fatto ✅
 
-⚠️ **`demo/backend/.env` contiene una vera `GEMINI_API_KEY`.** Prima del primo commit serve un `.gitignore` che la escluda — altrimenti finirebbe nel repo (e temporaneamente pubblico, vedi trucco sotto per il clone).
-
-Sul PC, nella cartella del progetto:
-
-```powershell
-cd "C:\Users\torre\OneDrive\Desktop\Progetti Antigravity\Conversational_BI"
-git init
-```
-
-Crea `.gitignore`:
-
-```
-demo/backend/.env
-demo/backend/.venv/
-demo/backend/__pycache__/
-demo/backend/logs/
-demo/frontend/node_modules/
-demo/frontend/dist/
-```
-
-```powershell
-git add -A
-git status   # verifica che .env NON compaia nella lista
-git commit -m "initial commit"
-```
-
-Crea il repo su GitHub (account `minuxok`, come gli altri progetti) e pusha:
-
-```powershell
-gh repo create minuxok/conversational-bi --private --source=. --remote=origin --push
-```
+Repo creato e pushato su `https://github.com/minuxok/bi_tceitalia`, branch `main` e `dev` allineati. `.gitignore` esclude `demo/backend/.env` (contiene una vera `GEMINI_API_KEY`) — va sempre ricreato manualmente sul server da `.env.example` (sez. 1.3).
 
 ---
 
@@ -62,11 +32,13 @@ gh repo create minuxok/conversational-bi --private --source=. --remote=origin --
 
 ### 1.2 Clona il repo sul server
 
-> ⚠️ Repo privato: prima di clonare, su GitHub → repo → **Settings** → **Danger Zone** → **Change visibility** → **Make public**, clona (30 secondi), rimetti subito **Make private**. Grazie al `.gitignore` dello step 0, `.env` non è nel repo quindi non c'è rischio anche nella finestra pubblica.
+> ⚠️ Se il repo è privato: prima di clonare, su GitHub → repo → **Settings** → **Danger Zone** → **Change visibility** → **Make public**, clona (30 secondi), rimetti subito **Make private**. Grazie al `.gitignore`, `.env` non è nel repo quindi non c'è rischio anche nella finestra pubblica.
 
 ```bash
 cd /opt
-sudo git clone https://github.com/minuxok/conversational-bi conversational-bi
+sudo git clone https://github.com/minuxok/bi_tceitalia conversational-bi
+cd conversational-bi
+git checkout main
 sudo chown -R $USER:$USER /opt/conversational-bi
 ```
 
@@ -180,8 +152,9 @@ Se entrambi rispondono → **il sito è online**. Fai anche una query di test da
 ```powershell
 git add -A
 git commit -m "descrizione modifiche"
-git push origin main
+git push origin dev
 ```
+Quando `dev` è pronto per la produzione, merge su `main` e push anche quello.
 
 **2. Su Putty (server):**
 ```bash
