@@ -40,7 +40,7 @@ export default function App() {
       </main>
 
       <footer className="host-foot" id="contatti">
-        © TCE Analytics System — pagina dimostrativa
+        © TCE Analytics System - pagina dimostrativa
       </footer>
     </div>
   )

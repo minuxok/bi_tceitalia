@@ -17,7 +17,7 @@ import {
 import type { Cella, RispostaRisultato } from './types'
 import { fmtNum, tickNum } from './format'
 
-const COLORI = ['#2f6df6', '#1f8a5b', '#e08a1e', '#8e44ad', '#c0392b', '#16a3b8', '#6b7280', '#d1477a']
+const COLORI = ['#2563eb', '#0d9488', '#d97706', '#7c3aed', '#e11d48', '#0284c7', '#4b5563', '#db2777']
 
 const tipTip = (v: number | string) => fmtNum(v as Cella)
 
@@ -51,21 +51,28 @@ const ALTEZZA = 280
 // quindi li passiamo come array di elementi con key.
 function assiCartesiani(xKey: string, molteCategorie: boolean): ReactElement[] {
   return [
-    <CartesianGrid key="grid" strokeDasharray="3 3" stroke="#eef1f6" />,
+    <CartesianGrid key="grid" strokeDasharray="3 3" stroke="var(--cbi-border, #e3e7ee)" opacity={0.6} />,
     <XAxis
       key="x"
       dataKey={xKey}
-      tick={{ fontSize: 11, fill: '#5b6472' }}
+      tick={{ fontSize: 11, fill: 'var(--cbi-muted, #5b6472)' }}
       interval={molteCategorie ? 'preserveStartEnd' : 0}
       angle={molteCategorie ? -25 : 0}
       textAnchor={molteCategorie ? 'end' : 'middle'}
       height={molteCategorie ? 60 : 28}
     />,
-    <YAxis key="y" tick={{ fontSize: 11, fill: '#5b6472' }} tickFormatter={tickNum} width={56} />,
+    <YAxis key="y" tick={{ fontSize: 11, fill: 'var(--cbi-muted, #5b6472)' }} tickFormatter={tickNum} width={56} />,
     <Tooltip
       key="tip"
       formatter={tipTip}
-      contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e3e7ee' }}
+      contentStyle={{
+        fontSize: 12,
+        borderRadius: 8,
+        border: '1px solid var(--cbi-border, #e3e7ee)',
+        backgroundColor: 'var(--cbi-bg, #ffffff)',
+        color: 'var(--cbi-fg, #1a1f2b)',
+        boxShadow: 'var(--cbi-shadow)',
+      }}
     />,
   ]
 }
