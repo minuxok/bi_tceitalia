@@ -126,9 +126,11 @@ Nel sito `bi.tceitalia.com` → tab **Options** → Apache Directives:
 
 ```apache
 ProxyPreserveHost On
-ProxyPass /api http://localhost:3005/
-ProxyPassReverse /api http://localhost:3005/
+ProxyPass /api/ http://localhost:3005/
+ProxyPassReverse /api/ http://localhost:3005/
 ```
+
+> ⚠️ Slash finale obbligatorio e coerente su entrambi i lati (`/api/` non `/api`): senza, Apache non strippa il prefisso e il backend riceve `/api/health` invece di `/health`, rispondendo 404 `{"detail":"Not Found"}` (visto in produzione il 30/08/2026).
 
 > Il frontend (`demo/frontend/src/api.ts`) chiama di default il path `/api` (`/api/health`, `/api/chiedi`) — coerente con questo proxy, non serve passare `VITE_API_BASE` in build.
 
