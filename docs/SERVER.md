@@ -27,7 +27,7 @@ Repo creato e pushato su `https://github.com/minuxok/bi_tceitalia`, branch `main
 **URL ISPConfig:** `https://193.70.38.117:8080`
 
 1. Crea un nuovo sito web per il dominio `bi.tceitalia.com`.
-2. Annota il **document root** assegnato (pattern osservato: `/var/www/clients/clientN/webNN/web`).
+2. ISPConfig assegna `/var/www/clients/client0/web28` — la cartella pubblica servita da Apache è la sottocartella **`web`** dentro quel percorso: `/var/www/clients/client0/web28/web`.
 3. Tab **SSL** → abilita **Let's Encrypt**.
 
 ### 1.2 Clona il repo sul server
@@ -117,9 +117,8 @@ curl http://localhost:3005/health
 ### 1.6 Pubblica il frontend nel document root
 
 ```bash
-sudo rsync -a --delete /opt/conversational-bi/demo/frontend/dist/ /var/www/clients/clientN/webNN/web/
+sudo rsync -a --delete /opt/conversational-bi/demo/frontend/dist/ /var/www/clients/client0/web28/web/
 ```
-(sostituisci `clientN/webNN` con il percorso reale annotato al passo 1.1)
 
 ### 1.7 Reverse proxy per l'API in ISPConfig
 
@@ -170,7 +169,7 @@ pm2 restart conversational-bi
 cd ../frontend
 npm install   # solo se package.json è cambiato
 npm run build
-sudo rsync -a --delete dist/ /var/www/clients/clientN/webNN/web/
+sudo rsync -a --delete dist/ /var/www/clients/client0/web28/web/
 ```
 
 ---
@@ -196,7 +195,7 @@ sudo rsync -a --delete dist/ /var/www/clients/clientN/webNN/web/
 | `/opt/conversational-bi/demo/backend/.env` | Config produzione (chiave Gemini, CORS, ecc.) — **non versionato**, va ricreato manualmente ad ogni nuovo clone |
 | `/opt/conversational-bi/demo/db/acme.db` | Database SQLite, versionato in git |
 | `/opt/conversational-bi/demo/frontend/dist/` | Output build, **non è quello che serve Apache** — va copiato nel document root |
-| `/var/www/clients/clientN/webNN/web/` | Document root reale servito da Apache (richiede `sudo` per scriverci) |
+| `/var/www/clients/client0/web28/web/` | Document root reale servito da Apache (richiede `sudo` per scriverci) |
 | `~/.pm2/logs/conversational-bi-out.log` | Log output |
 | `~/.pm2/logs/conversational-bi-error.log` | Log errori |
 
