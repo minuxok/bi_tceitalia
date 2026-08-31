@@ -1,0 +1,11 @@
+# il segreto NON entra nell'immagine: passato a runtime con --env-file
+backend/.env
+backend/.venv/
+backend/logs/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+*.md
+frontend/
+eval/last_run.json
+.git/
