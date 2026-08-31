@@ -199,15 +199,12 @@ creato a mano sul server (come prima, §1.3) e non passa da git.
 
 ```bash
 cd /opt/conversational-bi
-git branch --show-current            # deve essere il branch che usi per la CBI
+git branch --show-current            # deve essere: main
 # se non ci sei già:
-git fetch && git checkout feature/taste-skill-redesign
-
-# i file Docker erano stati creati a mano: se git li segnala come non tracciati (??),
-# rimuovili (contenuto identico a quello in git) e pulla
-git status --short
-rm -f demo/Dockerfile demo/.dockerignore
+git fetch --prune && git checkout main && git branch --set-upstream-to=origin/main
 git pull
+
+# Dockerfile e .dockerignore ora sono versionati in main: nessun file da rimuovere a mano.
 
 # togli il vecchio processo PM2 (lo sostituisce il container)
 pm2 delete conversational-bi && pm2 save
@@ -217,7 +214,7 @@ cat > ~/deploy-cbi.sh <<'EOF'
 #!/bin/bash
 set -e
 cd /opt/conversational-bi
-git pull
+git pull origin main
 cd demo
 docker build -t conversational-bi:latest -f Dockerfile .
 docker stop conversational-bi 2>/dev/null || true
@@ -235,8 +232,8 @@ chmod +x ~/deploy-cbi.sh
 ### Aggiornare il backend (ogni volta che hai novità)
 
 ```bash
-# 1. sul PC
-git push origin feature/taste-skill-redesign
+# 1. sul PC (dopo aver portato le modifiche su main)
+git push origin main
 
 # 2. su Putty
 ~/deploy-cbi.sh

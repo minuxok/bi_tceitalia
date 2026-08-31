@@ -105,7 +105,7 @@ def sintesi_risultato(ris: Risultato, viz: dict) -> str:
             non_additiva = any(t in yl for t in ("pct", "perc", "media", "medio", "aov", "%"))
             if additiva and not non_additiva:
                 parti.append(f"totale {y} = {_fmt(tot)}")
-            parti.append(f"valore piu' alto: {top_k} = {_fmt(top_v)}")
+            parti.append(f"valore più alto: {top_k} = {_fmt(top_v)}")
             return ". ".join(parti).capitalize() + "."
 
     if ris.n_righe == 1:
