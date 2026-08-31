@@ -2,7 +2,7 @@
 
 > **VPS:** `193.70.38.117` · Ubuntu · ISPConfig (stesso VPS di tagnest, cultural-invaders, visitnove-api, industriale-3d, poloniato100)
 > **Dominio:** `https://bi.tceitalia.com`
-> **App:** `/opt/conversational-bi` — backend FastAPI (Python/uvicorn) gestito con **PM2**, frontend build statica Vite
+> **App:** `/opt/conversational-bi` — backend FastAPI (Python/uvicorn) in **container Docker** dal 31/08/2026 (prima era PM2 — vedi §"Procedura per Docker"), frontend build statica Vite
 > **Porta backend:** `3005` (3000=tagnest, 3001=cultural-invaders-next, 3002/3003=visitnove-api e un'altra app, 3004=industriale-3d — verifica con `pm2 status` prima di assumerla libera)
 > **Database:** SQLite, file `demo/db/acme.db` dentro il repo
 > **Accesso SSH:** Putty → `193.70.38.117` porta `22`, utente da definire (stesso utente delle altre app su questo VPS, es. `ubuntu`)
@@ -149,6 +149,9 @@ Se entrambi rispondono → **il sito è online**. Fai anche una query di test da
 
 ## 2. Operazione più comune — Aggiornare il sito
 
+> ⚠️ Il **backend** ora si aggiorna con Docker, non con `pm2 restart` — vedi §"Procedura per Docker".
+> Questa sezione resta valida per il **frontend**.
+
 **1. Sul PC (terminale locale):**
 ```powershell
 git add -A
@@ -162,17 +165,116 @@ Quando `dev` è pronto per la produzione, merge su `main` e push anche quello.
 cd /opt/conversational-bi
 git pull origin main
 
-# Backend
-cd demo/backend
-.venv/bin/pip install -r requirements.txt   # solo se requirements.txt è cambiato
-pm2 restart conversational-bi
+# Backend  → NON più così: usa ~/deploy-cbi.sh (§"Procedura per Docker")
 
 # Frontend
-cd ../frontend
+cd demo/frontend
 npm install   # solo se package.json è cambiato
 npm run build
 sudo rsync -a --delete dist/ /var/www/clients/client0/web28/web/
 ```
+
+---
+
+## Procedura per Docker
+
+> Dal **31/08/2026** il **backend** non gira più con PM2 ma dentro un **container Docker**.
+> Motivo: così **AEGIS** (sistema di monitoraggio sullo stesso VPS) può sorvegliarlo e
+> riavviarlo da solo se cade. Il **frontend** è invariato (build statica Vite servita da
+> Apache). Anche il reverse proxy ISPConfig `/api/` → `http://localhost:3005/` non cambia:
+> il container pubblica sulla stessa porta `127.0.0.1:3005`.
+
+### Cosa c'è nel repo
+
+| File | Ruolo |
+|---|---|
+| `demo/Dockerfile` | Ricetta immagine: `python:3.12-slim` → `pip install -r backend/requirements.txt` → copia `backend/` + `db/` + `semantic/` + `eval/` → avvia `uvicorn app.main:app` su `:3005`. Con `HEALTHCHECK` su `/health`. |
+| `demo/.dockerignore` | Esclude dall'immagine `.venv`, `logs/`, `__pycache__`, e soprattutto il **`.env`** — il segreto NON entra nell'immagine |
+
+`GEMINI_API_KEY` e le altre variabili arrivano a runtime da
+`/opt/conversational-bi/demo/backend/.env` via `--env-file`. Quel file va comunque
+creato a mano sul server (come prima, §1.3) e non passa da git.
+
+### Prima volta sul server (una tantum)
+
+```bash
+cd /opt/conversational-bi
+git branch --show-current            # deve essere il branch che usi per la CBI
+# se non ci sei già:
+git fetch && git checkout feature/taste-skill-redesign
+
+# i file Docker erano stati creati a mano: se git li segnala come non tracciati (??),
+# rimuovili (contenuto identico a quello in git) e pulla
+git status --short
+rm -f demo/Dockerfile demo/.dockerignore
+git pull
+
+# togli il vecchio processo PM2 (lo sostituisce il container)
+pm2 delete conversational-bi && pm2 save
+
+# crea lo script di deploy
+cat > ~/deploy-cbi.sh <<'EOF'
+#!/bin/bash
+set -e
+cd /opt/conversational-bi
+git pull
+cd demo
+docker build -t conversational-bi:latest -f Dockerfile .
+docker stop conversational-bi 2>/dev/null || true
+docker rm conversational-bi 2>/dev/null || true
+docker run -d --name conversational-bi --restart unless-stopped \
+  -p 127.0.0.1:3005:3005 --env-file backend/.env conversational-bi:latest
+sleep 4
+docker ps --filter name=conversational-bi
+echo "--- health ---"
+curl -s http://127.0.0.1:3005/health; echo
+EOF
+chmod +x ~/deploy-cbi.sh
+```
+
+### Aggiornare il backend (ogni volta che hai novità)
+
+```bash
+# 1. sul PC
+git push origin feature/taste-skill-redesign
+
+# 2. su Putty
+~/deploy-cbi.sh
+```
+
+Lo script fa: `git pull` → ricostruisce l'immagine → sostituisce il container →
+stampa stato e `/health`. Il **frontend** si aggiorna ancora come nella §2
+(`npm run build` + `rsync`): Docker riguarda **solo il backend**.
+
+### Comandi Docker essenziali
+
+| Comando | Cosa fa |
+|---|---|
+| `docker ps` | Container attivi — cerca `conversational-bi`, stato `Up (healthy)` |
+| `docker logs conversational-bi --tail 50` | Ultimi log del backend |
+| `docker logs -f conversational-bi` | Log in tempo reale (Ctrl-C per uscire) |
+| `docker restart conversational-bi` | Riavvio manuale |
+| `docker stop conversational-bi` / `docker start conversational-bi` | Ferma / riavvia |
+| `docker image prune -f` | Cancella le immagini vecchie senza nome (ogni tanto, libera spazio) |
+
+### Rollback a PM2 (emergenza)
+
+```bash
+docker stop conversational-bi && docker rm conversational-bi
+cd /opt/conversational-bi/demo/backend
+pm2 start .venv/bin/python3 --name conversational-bi --cwd "$(pwd)" \
+  -- -m uvicorn app.main:app --host 127.0.0.1 --port 3005
+pm2 save
+```
+
+### Note
+
+- **Blip in AEGIS**: durante lo swap il container sparisce per ~2s; AEGIS può aprire e
+  richiudere subito un incidente. Innocuo.
+- **Non modificare il codice sulla VPS**: `git pull` lo sovrascrive. Sempre locale → push → `deploy-cbi.sh`.
+- **Nuove variabili d'ambiente**: se le aggiungi in `.env.example`, aggiungile anche a
+  `/opt/conversational-bi/demo/backend/.env` sul server.
+- **`acme.db`** è dentro l'immagine: se rigeneri il DB con `seed.py`, serve un nuovo `docker build` (lo fa già `deploy-cbi.sh`).
 
 ---
 
@@ -193,13 +295,14 @@ sudo rsync -a --delete dist/ /var/www/clients/client0/web28/web/
 
 | Percorso | Cosa contiene |
 |---|---|
-| `/opt/conversational-bi/` | Sorgente del repo (git), backend gira da qui via PM2 |
-| `/opt/conversational-bi/demo/backend/.env` | Config produzione (chiave Gemini, CORS, ecc.) — **non versionato**, va ricreato manualmente ad ogni nuovo clone |
-| `/opt/conversational-bi/demo/db/acme.db` | Database SQLite, versionato in git |
-| `/opt/conversational-bi/demo/frontend/dist/` | Output build, **non è quello che serve Apache** — va copiato nel document root |
+| `/opt/conversational-bi/` | Sorgente del repo (git). Da qui `deploy-cbi.sh` fa `docker build` del backend |
+| `/opt/conversational-bi/demo/Dockerfile` · `demo/.dockerignore` | Ricetta immagine del backend (versionati) |
+| `/opt/conversational-bi/demo/backend/.env` | Config produzione (chiave Gemini, CORS, ecc.) — **non versionato**, passato al container con `--env-file`, va ricreato manualmente ad ogni nuovo clone |
+| `/opt/conversational-bi/demo/db/acme.db` | Database SQLite, versionato in git, copiato dentro l'immagine |
+| `/opt/conversational-bi/demo/frontend/dist/` | Output build frontend, **non è quello che serve Apache** — va copiato nel document root |
 | `/var/www/clients/client0/web28/web/` | Document root reale servito da Apache (richiede `sudo` per scriverci) |
-| `~/.pm2/logs/conversational-bi-out.log` | Log output |
-| `~/.pm2/logs/conversational-bi-error.log` | Log errori |
+| `~/deploy-cbi.sh` | Script di deploy del backend (build immagine + swap container) |
+| `docker logs conversational-bi` | Log del backend (sostituisce i vecchi `~/.pm2/logs/conversational-bi-*.log`) |
 
 ---
 
@@ -218,8 +321,8 @@ Usare ISPConfig per:
 
 1. `curl -I https://bi.tceitalia.com` → risponde il frontend?
 2. `curl http://localhost:3005/health` → risponde il backend in locale?
-3. `pm2 status` → conversational-bi è online?
-4. `pm2 logs conversational-bi --err --lines 30` → c'è un errore (es. `GEMINI_API_KEY` mancante, `.env` non creato)?
+3. `docker ps` → il container `conversational-bi` è `Up (healthy)`?
+4. `docker logs conversational-bi --tail 40` → c'è un errore (es. `GEMINI_API_KEY` mancante, `.env` non passato)?
 5. `sudo systemctl status apache2` → Apache è attivo?
 6. Verifica che il document root in ISPConfig punti davvero alla cartella dove hai fatto `rsync`
 
