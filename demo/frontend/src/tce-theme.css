@@ -1,0 +1,186 @@
+/* ==========================================================================
+   TCE DEV DESIGN SYSTEM - SUBDOMAIN THEME CSS
+   Font consigliato: Inter (Google Fonts)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Tavolozza Colori Primaria */
+  --color-bg: #050505;
+  --color-primary: #336699;
+  --color-primary-glow: rgba(51, 102, 153, 0.4);
+  --color-secondary: #fcb144;
+  --color-secondary-glow: rgba(252, 177, 68, 0.3);
+
+  /* Superfici e Bordi Glassmorphism */
+  --color-surface: rgba(15, 23, 42, 0.65);
+  --color-surface-hover: rgba(255, 255, 255, 0.06);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-accent: rgba(252, 177, 68, 0.4);
+
+  /* Tipografia & Testi */
+  --color-text: #ffffff;
+  --color-text-muted: rgba(255, 255, 255, 0.7);
+  --color-text-dim: rgba(255, 255, 255, 0.4);
+
+  /* Radii */
+  --radius-card: 16px;
+  --radius-pill: 9999px;
+  --radius-sm: 8px;
+
+  /* Font settings */
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reset Base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 100vw;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* Layout Helper */
+.section-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+/* Classi Glassmorphism */
+.glass-panel {
+  background: var(--color-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 20px 40px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  background: var(--color-surface-hover);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.glass-card-active {
+  background: rgba(51, 102, 153, 0.2) !important;
+  border-color: var(--color-secondary) !important;
+  box-shadow: 0 10px 25px -5px var(--color-secondary-glow) !important;
+}
+
+/* Componenti Bottoni (Pill & Contrast Lock) */
+.btn-pill {
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  padding: 0.75rem 1.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.btn-pill:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: var(--color-secondary);
+  color: #050505;
+  border: 1px solid var(--color-secondary);
+  box-shadow: 0 4px 14px var(--color-secondary-glow);
+}
+
+.btn-primary:hover {
+  background: #fdbd5e;
+  border-color: #fdbd5e;
+  box-shadow: 0 6px 20px rgba(252, 177, 68, 0.4);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.btn-outline-gold {
+  background: transparent;
+  color: var(--color-secondary);
+  border: 1px solid var(--color-secondary);
+}
+
+.btn-outline-gold:hover {
+  background: var(--color-secondary);
+  color: #050505;
+}
+
+/* Tipografia Utility */
+.heading-uppercase {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.text-gold {
+  color: var(--color-secondary);
+}
+
+.text-blue {
+  color: var(--color-primary);
+}
+
+/* Effects & Glows */
+.glass-glow-gold {
+  box-shadow: 0 0 35px -5px var(--color-secondary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.glass-glow-blue {
+  box-shadow: 0 0 35px -5px var(--color-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+

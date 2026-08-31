@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import Widget from './Widget.tsx'
 import type { WidgetProps } from './Widget.tsx'
+import './tce-theme.css'
 import './index.css'
 
 /**

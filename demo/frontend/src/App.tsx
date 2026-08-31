@@ -166,7 +166,6 @@ function HowItWorks() {
   return (
     <section className="lp-section" id="come-funziona">
       <div className="lp-wrap">
-        <p className="lp-eyebrow">Come funziona</p>
         <h2 className="lp-h2">Dalla domanda al grafico, in tre passaggi</h2>
         <div className="lp-steps">
           {steps.map((s, i) => (
