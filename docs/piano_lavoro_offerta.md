@@ -61,6 +61,22 @@ Impianto valido al ~70%. Buono come visione, debole su: connettività ai gestion
 4. **Prezzo chiaro e SLA scritto** (i generalisti spesso non lo danno).
 5. **Opzione on-premise/ibrida** per chi non vuole dati in cloud.
 
+### 2.1 Secondo verticale: gli e-commerce self-hosted
+
+Oltre ai gestionali, lo stesso prodotto si vende agli **e-commerce che girano su database proprio** (WooCommerce, PrestaShop, Magento). È un secondo cuneo, non un prodotto nuovo:
+
+- **Riuso quasi gratuito dell'architettura.** Il motore non conosce il dominio: tutto il "verticale" vive in 4 file dati (schema + seed, viste `ai_bi_*`, glossario, domande d'oro). Nuovo verticale = swap di quei file, zero modifiche al backend.
+- **Schemi standardizzati.** Woo/Presta/Magento hanno modelli dati noti e stabili: il connettore lo costruisci una volta e lo riusi su molti clienti — l'opposto dei gestionali, dove ogni installazione ha il suo schema.
+- **KPI universali.** Conversion rate, AOV, marginalità per categoria, rotazione di magazzino, resi, riacquisto, prodotti fermi: stesse domande per tutti → lavoro semantico riutilizzabile.
+- **Utente ideale.** Il merchant non è tecnico, l'analytics nativa di Woo/Presta è povera, GA4 è ostico: il divario tra "ho i dati" e "so leggerli" è esattamente il vuoto che riempiamo.
+- **Canale di distribuzione.** Le web agency che costruiscono e mantengono siti WooCommerce sono l'analogo dei rivenditori di gestionali: stesso schema di partnership.
+
+**Perimetro (v1 e-commerce):** solo e-commerce **self-hosted** con MySQL/MariaDB raggiungibile — stesso pattern tecnico dei gestionali (§3.2, Pattern A/B). Posizionamento su domande **operative e di merchandising**: magazzino, margini, performance prodotto, segmenti cliente, riacquisto.
+
+**Fuori ambito (fase 2, solo se la trazione lo giustifica):**
+- **Shopify**: niente accesso al DB, si passa dalle API → è un pezzo di prodotto diverso, non un adattamento.
+- **Attribution pubblicitaria multi-fonte** ("quanto rende la campagna Meta" = ordini + ad spend + GA + tool email): richiede più fonti, e la concorrenza è fittissima (Triple Whale, Polar, Lifetimer…). Un motore che interroga solo il DB risponde a metà: meglio non entrarci in v1.
+
 ---
 
 ## 3. Architettura tecnica
@@ -223,6 +239,7 @@ Vantaggi: l'LLM lavora su 8–15 viste pulite invece che su 300 tabelle criptich
 - [ ] **CTA** sotto la demo: *"Colleghiamo l'AI al tuo gestionale reale, in sola lettura → Prenota una demo di 15 minuti."*
 - [ ] **Logging** delle domande provate dai visitatori (ti dice cosa vuole il mercato).
 - [ ] Pagina landing con: problema → soluzione → sicurezza → demo → prezzi.
+- [x] **Secondo verticale nella demo — e-commerce "Nuvola Shop"** (§2.1): dataset + viste `ai_bi_*` + glossario + 12 domande d'oro; backend parametrizzato per verticale (`VERTICAL=acme|ecom`); toggle "Gestionale / E-commerce" nella sezione demo della landing (due istanze backend, `/api` + `/api-ecom`). Verificato dal vivo su entrambi i verticali. Resta l'eval live sul set e-commerce.
 
 ### Fase 2 — Cliente pilota · **solo su richiesta di un cliente reale**
 - [ ] Esegui il **runbook di onboarding** (§7) end-to-end.
@@ -362,6 +379,10 @@ Margine ricorrente lordo stimato: ~75–85%
 - [x] **Motore Text-to-SQL** + API (`demo/backend/`): `/chiedi`, `/domande`, `/health`; validatore query; pipeline testata offline.
 - [x] **API key Gemini** + verifica accuratezza reale: `eval_live.py` **12/12** golden (soglia ≥ 90%) + 3/3 controlli negativi + `probe_live.py` 16/17 su domande fuori set. Billing risolto (progetto su account con credito AI Studio).
 - [x] **Widget** React embeddabile (`demo/frontend/`, Vite+React+TS+Recharts): prompt precompilati, grafico (tutti i tipi provati dal vivo), SQL a scomparsa + spiegazione, badge isolamento, CTA, stili `.cbi-` scoped, API di embed `ConversationalBI.mount()`, responsive, bundle code-split (201 kB + Recharts in lazy). Fix in corsa: inferenza tipi colonne vista, assi Recharts, overflow conversazione. Eval ancora 12/12.
+- [x] **Secondo verticale demo — e-commerce "Nuvola Shop"** (§2.1): `demo/db/schema_ecom.sql` + `seed_ecom.py` → `nuvola.db` (abbigliamento/calzature: 3.600 clienti, 120 prodotti, 9.000 ordini, 1.852 resi, traffico giornaliero per canale → conversion rate senza GA); `demo/semantic/views_ecom.sql` (6 viste `ai_bi_*`); `glossario_ecom.yaml` (33 termini + regola "ROAS/CPA → non disponibile"); `demo/eval/golden_questions_ecom.yaml` (12 domande d'oro + 3 controlli negativi, tutte le SQL di riferimento eseguite e verificate).
+- [x] **Backend parametrizzato per verticale**: env `VERTICAL=acme|ecom` seleziona DB + viste + glossario + golden (`config.py`), `VIEW_DESCRIPTIONS` e `_VERTICAL_PROMPT` per verticale (`semantic.py`, `prompt.py`), `/health` riporta il verticale. `test_offline.py` verde su entrambi.
+- [x] **Toggle "Gestionale / E-commerce"** nella sezione demo della landing (`src/verticals.ts` + interruttore in `App.tsx`; `Widget` con prop `apiBase`/`storeName`). Due istanze del backend: `/api` (`:8000`, acme) e `/api-ecom` (`:8001`, ecom); in prod due servizi/container dietro nginx. Provato dal vivo: entrambi i verticali rispondono con grafico.
+- [x] `eval_live.py` sul set e-commerce: **12/12 golden (100%)**, di cui 7/7 "cieche", + **3/3 controlli negativi** (ROAS→rifiutato, email→PII rifiutata, domanda vaga→chiarimento). Modello `gemini/gemini-3.6-flash`. Esito in `demo/eval/last_run_ecom.json`.
 - [ ] Deploy della demo sul **VPS OVH** (uvicorn + systemd + nginx `/bi/`) + **logging** delle domande dei visitatori.
 - [ ] Pagina landing: problema → soluzione → sicurezza → demo → prezzi.
 - [ ] Prepara il **kit compliance** (DPA, one-pager sicurezza) e **6 slide + listino**.
@@ -370,6 +391,7 @@ Margine ricorrente lordo stimato: ~75–85%
 
 ---
 
-*Documento di lavoro interno. Revisione 3 — 2026-08-27.*
+*Documento di lavoro interno. Revisione 4 — 2026-08-31.*
 *Rev. 2: provider LLM (Gemini demo / Vertex AI UE prod, con avviso su AI Studio tier gratuito), build-vs-buy deciso (custom lean), DB demo e motore realizzati, strategia demo-first.*
 *Rev. 3: allineato il documento cliente-facing (`cliente.md`) al piano — claim di latenza "pochi secondi" (non "3 secondi"), due modalità di collegamento (accesso diretto / sincronizzazione periodica con latenza dichiarata), masking PII e isolamento per cliente nel kit sicurezza, timeline di attivazione realistica con settimana di UAT, perimetro DB ristretto (no "qualsiasi gestionale").*
+*Rev. 4: aggiunto il **secondo verticale e-commerce self-hosted** (§2.1) come nuovo cuneo che riusa l'architettura senza modifiche al backend; realizzato il dataset demo "Nuvola Shop" (schema/seed/viste `ai_bi_*`/glossario/12 domande d'oro validate). Restano: backend parametrizzato per verticale (`VERTICAL=acme|ecom`), toggle "Gestionale / E-commerce" nel widget, eval live sul nuovo set. Shopify e attribution pubblicitaria esplicitamente fuori dalla v1 e-commerce.*

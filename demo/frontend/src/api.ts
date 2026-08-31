@@ -2,7 +2,12 @@ import type { ElencoDomande, Health, Risposta } from './types'
 
 // In sviluppo: '/api' -> proxy Vite -> http://127.0.0.1:8000
 // In produzione: passare VITE_API_BASE al build (es. '/bi/api' o URL assoluto).
-const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') || '/api'
+// Ogni funzione accetta un `base` esplicito: la demo con più verticali passa
+// l'apiBase del verticale selezionato (vedi verticals.ts).
+const DEFAULT_BASE =
+  (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') || '/api'
+
+const norm = (base?: string) => base?.replace(/\/$/, '') || DEFAULT_BASE
 
 async function json<T>(res: Response): Promise<T> {
   const testo = await res.text()
@@ -15,14 +20,14 @@ async function json<T>(res: Response): Promise<T> {
   return dato as T
 }
 
-export async function getHealth(): Promise<Health> {
-  const res = await fetch(`${BASE}/health`)
+export async function getHealth(base?: string): Promise<Health> {
+  const res = await fetch(`${norm(base)}/health`)
   if (!res.ok) throw new Error(`Servizio non raggiungibile (${res.status}).`)
   return json<Health>(res)
 }
 
-export async function getDomande(): Promise<string[]> {
-  const res = await fetch(`${BASE}/domande`)
+export async function getDomande(base?: string): Promise<string[]> {
+  const res = await fetch(`${norm(base)}/domande`)
   if (!res.ok) throw new Error(`Impossibile caricare le domande di esempio (${res.status}).`)
   const dato = await json<ElencoDomande>(res)
   return dato.domande ?? []
@@ -33,10 +38,14 @@ export async function getDomande(): Promise<string[]> {
  * (anche gli errori applicativi hanno `tipo: 'errore'`), quindi non lanciamo
  * su status 4xx/5xx: normalizziamo tutto in una `Risposta`.
  */
-export async function chiedi(domanda: string, signal?: AbortSignal): Promise<Risposta> {
+export async function chiedi(
+  domanda: string,
+  base?: string,
+  signal?: AbortSignal,
+): Promise<Risposta> {
   let res: Response
   try {
-    res = await fetch(`${BASE}/chiedi`, {
+    res = await fetch(`${norm(base)}/chiedi`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ domanda }),

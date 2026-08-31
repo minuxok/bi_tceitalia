@@ -3,8 +3,8 @@
 > **VPS:** `193.70.38.117` · Ubuntu · ISPConfig (stesso VPS di tagnest, cultural-invaders, visitnove-api, industriale-3d, poloniato100)
 > **Dominio:** `https://bi.tceitalia.com`
 > **App:** `/opt/conversational-bi` — backend FastAPI (Python/uvicorn) in **container Docker** dal 31/08/2026 (prima era PM2 — vedi §"Procedura per Docker"), frontend build statica Vite
-> **Porta backend:** `3005` (3000=tagnest, 3001=cultural-invaders-next, 3002/3003=visitnove-api e un'altra app, 3004=industriale-3d — verifica con `pm2 status` prima di assumerla libera)
-> **Database:** SQLite, file `demo/db/acme.db` dentro il repo
+> **Porte backend:** `3005` = verticale **gestionale** (`conversational-bi`, `VERTICAL=acme`) · `3006` = verticale **e-commerce** (`conversational-bi-ecom`, `VERTICAL=ecom`). Due container dalla stessa immagine. (3000=tagnest, 3001=cultural-invaders-next, 3002/3003=visitnove-api e un'altra app, 3004=industriale-3d — verifica con `pm2 status`/`docker ps` prima di assumere libera una porta)
+> **Database:** SQLite nel repo — `demo/db/acme.db` (gestionale) e `demo/db/nuvola.db` (e-commerce), entrambi copiati dentro l'immagine
 > **Accesso SSH:** Putty → `193.70.38.117` porta `22`, utente da definire (stesso utente delle altre app su questo VPS, es. `ubuntu`)
 > **Repo:** https://github.com/minuxok/bi_tceitalia — branch `dev` (attivo), `main` (baseline)
 
@@ -63,7 +63,11 @@ LLM_MODEL=gemini/gemini-3.6-flash
 LLM_TEMPERATURE=0
 LLM_TIMEOUT_S=30
 
-DB_PATH=../db/acme.db
+# IMPORTANTE: lasciare VUOTO. Il verticale (e quindi il DB) lo impone
+# deploy-cbi.sh con `-e VERTICAL=acme|ecom` su ogni container.
+# Una riga `DB_PATH=../db/acme.db` farebbe servire acme.db anche al
+# container e-commerce: deploy-cbi.sh si rifiuta di partire se la trova.
+DB_PATH=
 
 SQL_ROW_LIMIT=1000
 SQL_TIMEOUT_S=8
@@ -78,12 +82,17 @@ ALLOWED_ORIGINS=https://bi.tceitalia.com
 LOG_DIR=./logs
 ```
 
-Verifica manuale (poi Ctrl+C, il servizio vero parte con PM2 al passo successivo):
+> Lo stesso `.env` è passato a **entrambi** i container (`--env-file`); l'unica
+> differenza tra i due è `-e VERTICAL=...`, iniettato da `deploy-cbi.sh`.
+
+Verifica manuale (poi Ctrl+C, il servizio vero parte in Docker):
 
 ```bash
 mkdir -p logs
-.venv/bin/python3 -m uvicorn app.main:app --host 127.0.0.1 --port 3005
-curl http://localhost:3005/health
+.venv/bin/python3 -m uvicorn app.main:app --host 127.0.0.1 --port 3005          # gestionale
+VERTICAL=ecom .venv/bin/python3 -m uvicorn app.main:app --host 127.0.0.1 --port 3006  # e-commerce
+curl http://localhost:3005/health   # -> "verticale":"acme"
+curl http://localhost:3006/health   # -> "verticale":"ecom"
 ```
 
 ### 1.4 Build del frontend
@@ -91,8 +100,13 @@ curl http://localhost:3005/health
 ```bash
 cd /opt/conversational-bi/demo/frontend
 npm install
-npm run build
+VITE_API_BASE_GESTIONALE=/api VITE_API_BASE_ECOMMERCE=/api-ecom npm run build
 ```
+
+> `/api` e `/api-ecom` sono già i default in `src/verticals.ts`: anche un
+> `npm run build` senza variabili funziona, purché Apache proxi entrambi i path
+> (§1.7). L'interruttore "Gestionale / E-commerce" nella sezione demo della
+> landing sceglie a quale backend parlare.
 
 Verifica che `dist/` sia stata creata con `index.html` dentro.
 
@@ -126,13 +140,16 @@ Nel sito `bi.tceitalia.com` → tab **Options** → Apache Directives:
 
 ```apache
 ProxyPreserveHost On
+ProxyPass /api-ecom/ http://localhost:3006/
+ProxyPassReverse /api-ecom/ http://localhost:3006/
 ProxyPass /api/ http://localhost:3005/
 ProxyPassReverse /api/ http://localhost:3005/
 ```
 
 > ⚠️ Slash finale obbligatorio e coerente su entrambi i lati (`/api/` non `/api`): senza, Apache non strippa il prefisso e il backend riceve `/api/health` invece di `/health`, rispondendo 404 `{"detail":"Not Found"}` (visto in produzione il 30/08/2026).
+> ⚠️ Metti `/api-ecom/` **prima** di `/api/`: i due path sono disgiunti (`/api-ecom` non inizia per `/api/`) ma tenere il più specifico in cima è la regola sicura.
 
-> Il frontend (`demo/frontend/src/api.ts`) chiama di default il path `/api` (`/api/health`, `/api/chiedi`) — coerente con questo proxy, non serve passare `VITE_API_BASE` in build.
+> Il frontend chiama `/api` (gestionale) e `/api-ecom` (e-commerce) — coerenti con questi due proxy. Non serve `VITE_API_BASE` in build se si usano questi path.
 
 Poi tab **SSL** → abilita **Let's Encrypt** se non già fatto.
 
@@ -140,10 +157,12 @@ Poi tab **SSL** → abilita **Let's Encrypt** se non già fatto.
 
 ```bash
 curl -I https://bi.tceitalia.com
-curl https://bi.tceitalia.com/api/health
+curl https://bi.tceitalia.com/api/health        # -> "verticale":"acme"
+curl https://bi.tceitalia.com/api-ecom/health   # -> "verticale":"ecom"
 ```
 
-Se entrambi rispondono → **il sito è online**. Fai anche una query di test dal widget in browser.
+Se rispondono tutti → **il sito è online**. Prova dal browser sia il verticale
+Gestionale sia E-commerce con l'interruttore nella sezione demo.
 
 ---
 
@@ -181,8 +200,13 @@ sudo rsync -a --delete dist/ /var/www/clients/client0/web28/web/
 > Dal **31/08/2026** il **backend** non gira più con PM2 ma dentro un **container Docker**.
 > Motivo: così **AEGIS** (sistema di monitoraggio sullo stesso VPS, `/opt/aegis`) può
 > sorvegliarlo e riavviarlo da solo se cade. Il **frontend** è invariato (build statica
-> Vite servita da Apache). Anche il reverse proxy ISPConfig `/api/` → `http://localhost:3005/`
-> non cambia: il container pubblica sulla stessa porta `127.0.0.1:3005`.
+> Vite servita da Apache).
+>
+> Dal **31/08/2026** i container sono **due**, dalla stessa immagine, uno per verticale:
+> `conversational-bi` (`VERTICAL=acme`, `127.0.0.1:3005`) e `conversational-bi-ecom`
+> (`VERTICAL=ecom`, `127.0.0.1:3006`). Porta interna sempre 3005; cambia solo quella
+> pubblicata. Reverse proxy Apache: `/api/` → 3005, `/api-ecom/` → 3006 (§1.7).
+> `deploy-cbi.sh` builda **una volta** e fa lo swap di **entrambi**.
 
 ### Cosa c'è nel repo
 
@@ -198,12 +222,24 @@ creato a mano sul server (come prima, §1.3) e non passa da git.
 
 ### AEGIS sorveglia questo container
 
-Il servizio è registrato in AEGIS (tabella `services` del DB `aegis`) con
+Il servizio gestionale è registrato in AEGIS (tabella `services` del DB `aegis`) con
 `container_name = 'conversational-bi'`. Conseguenze operative:
 
 - L'**Agent** (`systemd: aegis-agent`) manda lo stato dei container al Core ogni **15s**.
 - Se vede il container in stato `≠ running`, il Core apre un incidente `critical` e
   invia all'Agent un comando firmato `restart_container` → `docker restart conversational-bi`.
+
+**Container e-commerce (`conversational-bi-ecom`)** — per farlo sorvegliare anche lui,
+aggiungi una riga in `services` (una tantum):
+
+```bash
+sudo -u postgres psql -d aegis -c \
+  "INSERT INTO services (name, container_name) VALUES ('conversational-bi-ecom','conversational-bi-ecom');"
+```
+
+Se **non** lo registri, AEGIS semplicemente non lo auto-riavvia (nessun errore):
+resta comunque `--restart unless-stopped` a livello Docker. `deploy-cbi.sh` mette
+in pausa l'Agent per lo swap di entrambi a prescindere.
 - **Circuit breaker**: 3 remediation automatiche in 60 min → il servizio va in
   `quarantined` per un'ora (stop auto-restart, solo alert).
 
@@ -321,7 +357,7 @@ pm2 save
 | `/opt/conversational-bi/` | Sorgente del repo (git). Da qui `deploy-cbi.sh` fa `docker build` del backend |
 | `/opt/conversational-bi/demo/Dockerfile` · `demo/.dockerignore` | Ricetta immagine del backend (versionati) |
 | `/opt/conversational-bi/demo/backend/.env` | Config produzione (chiave Gemini, CORS, ecc.) — **non versionato**, passato al container con `--env-file`, va ricreato manualmente ad ogni nuovo clone |
-| `/opt/conversational-bi/demo/db/acme.db` | Database SQLite, versionato in git, copiato dentro l'immagine |
+| `/opt/conversational-bi/demo/db/acme.db` · `demo/db/nuvola.db` | Database SQLite dei due verticali, versionati in git, copiati dentro l'immagine |
 | `/opt/conversational-bi/demo/frontend/dist/` | Output build frontend, **non è quello che serve Apache** — va copiato nel document root |
 | `/var/www/clients/client0/web28/web/` | Document root reale servito da Apache (richiede `sudo` per scriverci) |
 | `~/deploy-cbi.sh` | Symlink a `/opt/conversational-bi/demo/deploy-cbi.sh` (script di deploy versionato: build + pausa AEGIS + swap container) |
@@ -344,9 +380,9 @@ Usare ISPConfig per:
 ## Se il sito non risponde — Checklist
 
 1. `curl -I https://bi.tceitalia.com` → risponde il frontend?
-2. `curl http://localhost:3005/health` → risponde il backend in locale?
-3. `docker ps` → il container `conversational-bi` è `Up (healthy)`?
-4. `docker logs conversational-bi --tail 40` → c'è un errore (es. `GEMINI_API_KEY` mancante, `.env` non passato)?
+2. `curl http://localhost:3005/health` e `curl http://localhost:3006/health` → rispondono i due backend? (verifica il campo `"verticale"`)
+3. `docker ps` → i container `conversational-bi` **e** `conversational-bi-ecom` sono `Up (healthy)`?
+4. `docker logs conversational-bi --tail 40` / `docker logs conversational-bi-ecom --tail 40` → errori (es. `GEMINI_API_KEY` mancante, `.env` non passato, DB del verticale mancante)?
 5. `sudo systemctl is-active aegis-agent` → se `inactive` (es. un deploy interrotto prima del riavvio), `sudo systemctl start aegis-agent`
 6. `sudo -u postgres psql -d aegis -c "SELECT name, quarantined_until FROM services WHERE container_name='conversational-bi';"` → se `quarantined_until` è nel futuro, l'auto-heal è sospeso: `... SET quarantined_until = NULL ...` per riattivarlo
 7. `sudo systemctl status apache2` → Apache è attivo?

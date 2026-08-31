@@ -11,6 +11,10 @@ export interface WidgetProps {
   ctaLabel?: string
   /** massimo di esempi mostrati come chip */
   maxEsempi?: number
+  /** base dell'API del backend da interrogare (default: '/api' o VITE_API_BASE) */
+  apiBase?: string
+  /** nome dello store fittizio, usato in sottotitolo e placeholder */
+  storeName?: string
 }
 
 interface Turno {
@@ -24,11 +28,16 @@ let contatore = 0
 
 export default function Widget({
   titolo = 'Chiedi ai tuoi dati',
-  sottotitolo = 'Demo su un’azienda fittizia ("Acme Srl"). Domande in italiano, risposte in pochi secondi.',
+  sottotitolo,
   ctaHref = '#contatti',
   ctaLabel = 'Vuoi la stessa cosa sui tuoi dati? Parliamone',
   maxEsempi = 6,
+  apiBase,
+  storeName = 'Acme Srl',
 }: WidgetProps) {
+  const sub =
+    sottotitolo ??
+    `Demo su un’azienda fittizia ("${storeName}"). Domande in italiano, risposte in pochi secondi.`
   const [esempi, setEsempi] = useState<string[]>([])
   const [salute, setSalute] = useState<Health | null>(null)
   const [bozza, setBozza] = useState('')
@@ -38,14 +47,16 @@ export default function Widget({
   const ultimoTurnoRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  // Nota: la landing rimonta il Widget con key={verticale}, quindi al cambio
+  // verticale lo stato riparte pulito senza bisogno di azzerarlo qui.
   useEffect(() => {
-    getDomande()
+    getDomande(apiBase)
       .then((d) => setEsempi(d.slice(0, maxEsempi)))
       .catch(() => setEsempi([]))
-    getHealth()
+    getHealth(apiBase)
       .then(setSalute)
       .catch(() => setSalute(null))
-  }, [maxEsempi])
+  }, [maxEsempi, apiBase])
 
   useEffect(() => {
     ultimoTurnoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -60,7 +71,7 @@ export default function Widget({
     setTurni((t) => [...t, { id, domanda, stato: 'loading' }])
     let risposta: Risposta
     try {
-      risposta = await chiedi(domanda)
+      risposta = await chiedi(domanda, apiBase)
     } catch {
       risposta = { tipo: 'errore', errore: 'Richiesta interrotta.' }
     }
@@ -99,7 +110,7 @@ export default function Widget({
       <header className="cbi-header">
         <div>
           <p className="cbi-title">{titolo}</p>
-          <p className="cbi-subtitle">{sottotitolo}</p>
+          <p className="cbi-subtitle">{sub}</p>
         </div>
         <span
           className="cbi-badge"
@@ -175,7 +186,7 @@ export default function Widget({
           <textarea
             ref={inputRef}
             className="cbi-input"
-            placeholder="Scrivi una domanda sui dati di Acme Srl…"
+            placeholder={`Scrivi una domanda sui dati di ${storeName}…`}
             value={bozza}
             rows={1}
             maxLength={500}

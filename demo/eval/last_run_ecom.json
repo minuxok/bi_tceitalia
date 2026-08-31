@@ -1,0 +1,167 @@
+{
+  "quando": "2026-08-31T17:05:56+00:00",
+  "modello": "gemini/gemini-3.6-flash",
+  "domande_pass": 12,
+  "domande_tot": 12,
+  "cieche_pass": 7,
+  "cieche_tot": 7,
+  "negativi_pass": 3,
+  "negativi_tot": 3,
+  "dettaglio": [
+    {
+      "id": "G01",
+      "domanda": "Mostrami il fatturato mese per mese del 2025 in un grafico a barre.",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT anno_mese, ROUND(SUM(ricavo_netto), 2) AS fatturato FROM ai_bi_vendite WHERE anno = 2025 GROUP BY anno_mese ORDER BY anno_mese",
+      "sql_eseguita": "SELECT anno_mese, ROUND(SUM(ricavo_netto), 2) AS fatturato FROM ai_bi_vendite WHERE anno = 2025 GROUP BY anno_mese ORDER BY anno_mese LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 12,
+      "n_righe_ottenute": 12
+    },
+    {
+      "id": "G02",
+      "domanda": "Quali sono i 10 prodotti che hanno fatturato di più nell'ultimo anno?",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT prodotto, fatturato_12m FROM ai_bi_prodotti ORDER BY fatturato_12m DESC LIMIT 10",
+      "sql_eseguita": "SELECT prodotto, fatturato_12m FROM ai_bi_prodotti ORDER BY fatturato_12m DESC LIMIT 10",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 10,
+      "n_righe_ottenute": 10
+    },
+    {
+      "id": "G03",
+      "domanda": "Qual è il margine percentuale per categoria di prodotto?",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT categoria_prodotto, ROUND(SUM(margine) * 100.0 / SUM(ricavo_netto), 1) AS margine_pct FROM ai_bi_vendite GROUP BY categoria_prodotto ORDER BY margine_pct DESC",
+      "sql_eseguita": "SELECT categoria_prodotto, ROUND(SUM(margine) * 100.0 / SUM(ricavo_netto), 1) AS margine_pct FROM ai_bi_vendite GROUP BY categoria_prodotto ORDER BY margine_pct DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 6,
+      "n_righe_ottenute": 6
+    },
+    {
+      "id": "G04",
+      "domanda": "Qual è il conversion rate per canale negli ultimi 12 mesi?",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT canale, ROUND(SUM(ordini) * 100.0 / SUM(sessioni), 2) AS conversion_rate_pct FROM ai_bi_traffico WHERE data >= date((SELECT data_riferimento FROM ai_bi_meta), '-12 months') GROUP BY canale ORDER BY conversion_rate_pct DESC",
+      "sql_eseguita": "SELECT canale, ROUND(SUM(ordini) * 100.0 / SUM(sessioni), 2) AS conversion_rate_pct FROM ai_bi_traffico WHERE data >= DATE((SELECT data_riferimento FROM ai_bi_meta), '-12 months') GROUP BY canale ORDER BY conversion_rate_pct DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 6,
+      "n_righe_ottenute": 6
+    },
+    {
+      "id": "G05",
+      "domanda": "Quanti clienti ci sono per stato (attivo, a rischio, perso, mai acquistato)?",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT stato_cliente, COUNT(*) AS n_clienti FROM ai_bi_clienti GROUP BY stato_cliente ORDER BY n_clienti DESC",
+      "sql_eseguita": "SELECT stato_cliente, COUNT(*) AS n_clienti FROM ai_bi_clienti GROUP BY stato_cliente ORDER BY n_clienti DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 4,
+      "n_righe_ottenute": 4
+    },
+    {
+      "id": "G06",
+      "domanda": "Fatturato per regione negli ultimi 12 mesi.",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT regione, ROUND(SUM(ricavo_netto), 2) AS fatturato FROM ai_bi_vendite WHERE data_ordine >= date((SELECT data_riferimento FROM ai_bi_meta), '-12 months') GROUP BY regione ORDER BY fatturato DESC",
+      "sql_eseguita": "SELECT regione, ROUND(SUM(ricavo_netto), 2) AS fatturato FROM ai_bi_vendite WHERE data_ordine >= DATE((SELECT data_riferimento FROM ai_bi_meta), '-12 months') GROUP BY regione ORDER BY fatturato DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 17,
+      "n_righe_ottenute": 17
+    },
+    {
+      "id": "G07",
+      "domanda": "Andamento del numero di ordini per trimestre dal 2025 a oggi.",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT anno || '-T' || (((mese - 1) / 3) + 1) AS trimestre, COUNT(*) AS n_ordini FROM ai_bi_ordini WHERE anno >= 2025 GROUP BY anno, ((mese - 1) / 3) + 1 ORDER BY anno, ((mese - 1) / 3) + 1",
+      "sql_eseguita": "SELECT anno || '-T' || (((mese - 1) / 3) + 1) AS trimestre, COUNT(*) AS n_ordini FROM ai_bi_ordini WHERE anno >= 2025 GROUP BY anno, ((mese - 1) / 3) + 1 ORDER BY anno, ((mese - 1) / 3) + 1 LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 7,
+      "n_righe_ottenute": 7
+    },
+    {
+      "id": "G08",
+      "domanda": "Ci sono prodotti che non abbiamo mai venduto nell'ultimo anno?",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT sku, prodotto, categoria_prodotto, prezzo_listino, stato_prodotto, ultima_vendita FROM ai_bi_prodotti WHERE quantita_12m = 0 ORDER BY categoria_prodotto, prodotto",
+      "sql_eseguita": "SELECT sku, prodotto, categoria_prodotto, prezzo_listino, stato_prodotto, ultima_vendita FROM ai_bi_prodotti WHERE quantita_12m = 0 ORDER BY categoria_prodotto, prodotto LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 8,
+      "n_righe_ottenute": 8
+    },
+    {
+      "id": "G09",
+      "domanda": "Qual è il valore medio dell'ordine per dispositivo?",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT dispositivo, ROUND(AVG(valore_merce_lordo), 2) AS valore_medio_ordine FROM ai_bi_ordini GROUP BY dispositivo ORDER BY valore_medio_ordine DESC",
+      "sql_eseguita": "SELECT dispositivo, ROUND(AVG(valore_merce_lordo), 2) AS valore_medio_ordine FROM ai_bi_ordini GROUP BY dispositivo ORDER BY valore_medio_ordine DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 3,
+      "n_righe_ottenute": 3
+    },
+    {
+      "id": "G10",
+      "domanda": "Qual è il tasso di reso per categoria di prodotto?",
+      "tipo_llm": "query",
+      "sql_llm": "WITH v AS (SELECT categoria_prodotto, SUM(ricavo_netto) AS venduto_netto FROM ai_bi_vendite GROUP BY categoria_prodotto), r AS (SELECT categoria_prodotto, SUM(importo_rimborsato_netto) AS reso_netto FROM ai_bi_resi GROUP BY categoria_prodotto) SELECT v.categoria_prodotto, ROUND(COALESCE(r.reso_netto, 0) * 100.0 / v.venduto_netto, 2) AS tasso_reso_pct FROM v LEFT JOIN r ON v.categoria_prodotto = r.categoria_prodotto ORDER BY tasso_reso_pct DESC",
+      "sql_eseguita": "WITH v AS (SELECT categoria_prodotto, SUM(ricavo_netto) AS venduto_netto FROM ai_bi_vendite GROUP BY categoria_prodotto), r AS (SELECT categoria_prodotto, SUM(importo_rimborsato_netto) AS reso_netto FROM ai_bi_resi GROUP BY categoria_prodotto) SELECT v.categoria_prodotto, ROUND(COALESCE(r.reso_netto, 0) * 100.0 / v.venduto_netto, 2) AS tasso_reso_pct FROM v LEFT JOIN r ON v.categoria_prodotto = r.categoria_prodotto ORDER BY tasso_reso_pct DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 6,
+      "n_righe_ottenute": 6
+    },
+    {
+      "id": "G11",
+      "domanda": "Confronta il fatturato per categoria tra 2025 e 2026.",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT categoria_prodotto, ROUND(SUM(CASE WHEN anno = 2025 THEN ricavo_netto ELSE 0 END), 2) AS fatturato_2025, ROUND(SUM(CASE WHEN anno = 2026 THEN ricavo_netto ELSE 0 END), 2) AS fatturato_2026 FROM ai_bi_vendite WHERE anno IN (2025, 2026) GROUP BY categoria_prodotto ORDER BY fatturato_2026 DESC",
+      "sql_eseguita": "SELECT categoria_prodotto, ROUND(SUM(CASE WHEN anno = 2025 THEN ricavo_netto ELSE 0 END), 2) AS fatturato_2025, ROUND(SUM(CASE WHEN anno = 2026 THEN ricavo_netto ELSE 0 END), 2) AS fatturato_2026 FROM ai_bi_vendite WHERE anno IN (2025, 2026) GROUP BY categoria_prodotto ORDER BY fatturato_2026 DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 6,
+      "n_righe_ottenute": 6
+    },
+    {
+      "id": "G12",
+      "domanda": "Quanto fatturato arriva da clienti nuovi e quanto da clienti di ritorno nel 2026?",
+      "tipo_llm": "query",
+      "sql_llm": "SELECT tipo_cliente, ROUND(SUM(valore_merce_netto), 2) AS fatturato FROM ai_bi_ordini WHERE anno = 2026 GROUP BY tipo_cliente ORDER BY fatturato DESC",
+      "sql_eseguita": "SELECT tipo_cliente, ROUND(SUM(valore_merce_netto), 2) AS fatturato FROM ai_bi_ordini WHERE anno = 2026 GROUP BY tipo_cliente ORDER BY fatturato DESC LIMIT 1000",
+      "esito": "PASS",
+      "dettaglio": "ok",
+      "n_righe_attese": 2,
+      "n_righe_ottenute": 2
+    },
+    {
+      "id": "N01",
+      "domanda": "Quanto ho speso in advertising su Meta e qual è il ROAS?",
+      "tipo_llm": "non_disponibile",
+      "esito": "PASS",
+      "dettaglio": "il modello ha risposto 'non_disponibile' (corretto)"
+    },
+    {
+      "id": "N02",
+      "domanda": "Dammi le email dei 10 clienti che hanno speso di più.",
+      "tipo_llm": "non_disponibile",
+      "esito": "PASS",
+      "dettaglio": "il modello ha risposto 'non_disponibile' (corretto)"
+    },
+    {
+      "id": "N03",
+      "domanda": "Come sta andando il negozio?",
+      "tipo_llm": "chiarimento",
+      "esito": "PASS",
+      "dettaglio": "il modello ha risposto 'chiarimento' (corretto)"
+    }
+  ],
+  "verticale": "ecom",
+  "interrotto_per_quota": false
+}

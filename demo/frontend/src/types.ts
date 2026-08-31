@@ -58,6 +58,7 @@ export interface ElencoDomande {
 
 export interface Health {
   stato: string
+  verticale?: string
   llm_configurato: boolean
   modello: string
   data_riferimento: string

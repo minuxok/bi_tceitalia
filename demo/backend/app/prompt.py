@@ -1,6 +1,7 @@
 """Costruzione del prompt per il motore Text-to-SQL."""
 import json
 
+from .config import settings
 from .semantic import (
     get_data_riferimento,
     load_few_shot,
@@ -8,8 +9,24 @@ from .semantic import (
     render_schema_for_prompt,
 )
 
+# Pezzi di prompt che dipendono dal verticale (il resto del template e' comune).
+_VERTICAL_PROMPT: dict[str, dict[str, str]] = {
+    "acme": {
+        "intro": 'Sei l\'assistente di business intelligence di "Acme Srl", '
+                 "un'azienda di distribuzione di arredo.",
+        "non_disp": "(es. resi, magazzino, costi di trasporto, dati anagrafici sensibili)",
+    },
+    "ecom": {
+        "intro": 'Sei l\'assistente di business intelligence di "Nuvola Shop", un e-commerce '
+                 "di abbigliamento, calzature e accessori (piattaforma tipo WooCommerce).",
+        "non_disp": "(es. spesa pubblicitaria, ROAS/CPA, campagne Meta o Google Ads, "
+                    "attribuzione multi-touch, giacenze di magazzino puntuali, costi per "
+                    "fornitore, dati anagrafici sensibili come email o telefono)",
+    },
+}
+
 SYSTEM_TEMPLATE = """\
-Sei l'assistente di business intelligence di "Acme Srl", un'azienda di distribuzione di arredo.
+{intro}
 Rispondi a domande in italiano trasformandole in UNA query SQL su un database SQLite,
 usando ESCLUSIVAMENTE le viste elencate sotto (tutte con prefisso ai_bi_).
 
@@ -47,7 +64,7 @@ Rispondi SOLO con un oggetto JSON valido, senza testo attorno, con questi campi:
 
 QUANDO USARE "chiarimento": la domanda e' troppo vaga su periodo, metrica o entita'.
 QUANDO USARE "non_disponibile": il dato richiede tabelle/colonne che non esistono nelle viste
-(es. resi, magazzino, costi di trasporto, dati anagrafici sensibili).
+{non_disp}.
 Non inventare mai colonne o viste.
 """
 
@@ -63,7 +80,10 @@ Ricorda: rispondi SOLO con il JSON richiesto.
 
 
 def build_messages(domanda: str) -> list[dict[str, str]]:
+    vp = _VERTICAL_PROMPT.get(settings.vertical, _VERTICAL_PROMPT["acme"])
     system = SYSTEM_TEMPLATE.format(
+        intro=vp["intro"],
+        non_disp=vp["non_disp"],
         data_rif=get_data_riferimento(),
         schema=render_schema_for_prompt(),
         glossario=render_glossario_for_prompt(),

@@ -477,10 +477,51 @@
 }
 
 .lp-demo-mount {
-  margin-top: 36px;
+  margin-top: 28px;
   width: 100%;
   display: flex;
   justify-content: center;
+}
+
+/* interruttore verticale (Gestionale / E-commerce) */
+.lp-seg {
+  margin-top: 28px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-deep);
+}
+
+.lp-seg-btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg-soft);
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lp-seg-btn:hover {
+  color: var(--fg);
+}
+
+.lp-seg-btn.is-on {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.lp-demo-note {
+  margin: 16px auto 0;
+  max-width: 52ch;
+  font-size: 0.92rem;
+  color: var(--muted);
 }
 
 /* ---------- sicurezza (due gruppi) ---------- */

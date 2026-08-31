@@ -1,4 +1,6 @@
-"""API della demo Conversational BI - "Acme Srl".
+"""API della demo Conversational BI.
+
+Il verticale attivo (dataset + layer semantico) è scelto da VERTICAL (acme | ecom).
 
 Endpoint:
   GET  /health    stato del servizio
@@ -28,7 +30,10 @@ from .runner import QueryErrore, QueryTimeout, esegui
 from .semantic import get_data_riferimento, get_views_schema, load_golden_questions
 from .validator import QueryRifiutata, valida_e_normalizza
 
-app = FastAPI(title="Conversational BI - Demo Acme Srl", version="0.1.0")
+app = FastAPI(
+    title=f"Conversational BI - Demo ({settings.vertical})",
+    version="0.1.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,6 +58,7 @@ def _client_ip(req: Request) -> str:
 def health() -> dict:
     return {
         "stato": "ok",
+        "verticale": settings.vertical,
         "llm_configurato": settings.llm_ready,
         "modello": settings.llm_model,
         "data_riferimento": get_data_riferimento(),

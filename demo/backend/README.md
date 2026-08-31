@@ -1,8 +1,22 @@
 # Backend demo — Conversational BI
 
 FastAPI. Traduce una domanda in italiano in una query SQL sulle viste `ai_bi_*`
-del DB demo `acme.db`, la **valida**, la esegue in sola lettura e restituisce
+del DB demo, la **valida**, la esegue in sola lettura e restituisce
 testo + tabella + spec grafico + SQL + spiegazione.
+
+## Verticali
+
+Il motore è agnostico al dominio: un "verticale" è un bundle di 4 risorse
+(DB + viste `ai_bi_*` + glossario + domande d'oro) scelto dall'env `VERTICAL`.
+
+| `VERTICAL` | Dominio | DB | Layer semantico |
+|---|---|---|---|
+| `acme` (default) | gestionale / distribuzione arredo | `db/acme.db` | `semantic/views.sql`, `glossario.yaml`, `eval/golden_questions.yaml` |
+| `ecom` | e-commerce "Nuvola Shop" (abbigliamento) | `db/nuvola.db` | `semantic/views_ecom.sql`, `glossario_ecom.yaml`, `eval/golden_questions_ecom.yaml` |
+
+`DB_PATH` (opzionale) forza un file SQLite custom; se vuoto è derivato dal verticale.
+Il verticale è fissato all'avvio del processo — per servirli entrambi nella demo
+pubblica servono due istanze del backend (o un futuro override per-richiesta).
 
 ```
 POST /chiedi    { "domanda": "Fatturato mensile 2025 a barre" }
@@ -43,16 +57,17 @@ python -m venv .venv && .venv\Scripts\activate      # Windows
 # source .venv/bin/activate                          # Linux/Mac
 pip install -r requirements.txt
 
-cp .env.example .env        # e inserisci GEMINI_API_KEY
+cp .env.example .env        # e inserisci GEMINI_API_KEY (+ VERTICAL se non 'acme')
 uvicorn app.main:app --reload --port 8000
 ```
 
-Prima genera il DB: `cd ../db && python seed.py`.
+Prima genera il DB: `cd ../db && python seed.py` (gestionale) o `python seed_ecom.py` (e-commerce).
 
 ### Test senza chiave LLM
 
 ```bash
-python test_offline.py
+python test_offline.py                    # verticale da .env
+VERTICAL=ecom python test_offline.py      # forza l'e-commerce
 ```
 
 Valida ed esegue tutte le domande d'oro e verifica che il validatore blocchi

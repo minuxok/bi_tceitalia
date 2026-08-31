@@ -2,28 +2,45 @@
 # =====================================================================
 # Deploy del BACKEND Conversational_BI come container Docker sul VPS.
 #
+# Due verticali = DUE container dalla STESSA immagine (stesso codice,
+# env VERTICAL diverso):
+#     conversational-bi        VERTICAL=acme   127.0.0.1:3005 -> :3005
+#     conversational-bi-ecom   VERTICAL=ecom   127.0.0.1:3006 -> :3005
+# La porta INTERNA resta 3005 per entrambi (Dockerfile invariato);
+# cambia solo la porta pubblicata sull'host. Il reverse proxy Apache
+# instrada /api/ -> 3005 e /api-ecom/ -> 3006 (vedi docs/SERVER.md).
+#
 # Uso (da Putty, sul server):
-#     ~/deploy-cbi.sh                # se ~/deploy-cbi.sh e' il symlink a questo file
+#     ~/deploy-cbi.sh                # symlink a questo file
 #     /opt/conversational-bi/demo/deploy-cbi.sh
 #
 # Cosa fa:
 #   1. allinea il repo (e questo script) all'ultima main, poi si ri-esegue
-#   2. builda la nuova immagine (il container vecchio resta su: nessun downtime)
-#   3. mette in PAUSA l'Agent AEGIS per lo swap del container
-#   4. sostituisce il container (rm -f + run, finestra ~1s)
-#   5. aspetta l'healthcheck e stampa /health
+#   2. builda la nuova immagine (i container vecchi restano su: nessun downtime)
+#   3. mette in PAUSA l'Agent AEGIS per lo swap dei container
+#   4. sostituisce OGNI container (rm -f + run, finestra ~1s ciascuno)
+#   5. aspetta l'healthcheck e stampa /health di entrambi
 #   6. riaccende l'Agent AEGIS (anche se qualcosa fallisce, via trap)
 #
 # Il FRONTEND non e' gestito qui: vedi docs/SERVER.md sezione 2
-# (git pull + npm run build + rsync).
+# (git pull + npm run build + rsync). Build con:
+#   VITE_API_BASE_GESTIONALE=/api VITE_API_BASE_ECOMMERCE=/api-ecom npm run build
+# (sono gia' i default in src/verticals.ts: senza variabili funziona comunque,
+#  purche' Apache proxi /api/ e /api-ecom/).
 # =====================================================================
 set -euo pipefail
 
 REPO=/opt/conversational-bi
 IMAGE=conversational-bi:latest
-NAME=conversational-bi
-PUBLISH=127.0.0.1:3005:3005
+ENV_FILE="$REPO/demo/backend/.env"
 AGENT=aegis-agent
+INTERNAL_PORT=3005
+
+# verticale -> "nome_container porta_host"
+INSTANCES=(
+  "acme conversational-bi 3005"
+  "ecom conversational-bi-ecom 3006"
+)
 
 cd "$REPO"
 
@@ -38,14 +55,21 @@ fi
 
 echo "==> commit in deploy: $(git log --oneline -1)"
 
-# --- 2. build (container vecchio ancora attivo, zero downtime in questa fase)
+[ -f "$ENV_FILE" ] || { echo "ERRORE: manca $ENV_FILE (vedi docs/SERVER.md 1.3)"; exit 1; }
+if grep -Eq '^[[:space:]]*DB_PATH[[:space:]]*=[[:space:]]*\.\./db/' "$ENV_FILE"; then
+  echo "ERRORE: $ENV_FILE fissa DB_PATH a un file specifico."
+  echo "        Con due verticali DB_PATH deve essere VUOTO (lo sceglie VERTICAL)."
+  echo "        Correggi la riga in:  DB_PATH="
+  exit 1
+fi
+
+# --- 2. build (container vecchi ancora attivi, zero downtime in questa fase)
 docker build -t "$IMAGE" -f "$REPO/demo/Dockerfile" "$REPO/demo"
 
 # --- 3. pausa Agent AEGIS
-#     AEGIS sorveglia il container "conversational-bi": se lo vede fermo invia
-#     un "docker restart" firmato che farebbe a pugni con lo swap qui sotto
-#     (caso peggiore: riavvia il container vecchio e questo script si pianta).
-#     Fermare l'Agent per ~30s = niente report = niente incidente = niente heal.
+#     AEGIS sorveglia i container CBI: se ne vede uno fermo invia un
+#     "docker restart" firmato che farebbe a pugni con lo swap qui sotto.
+#     Fermare l'Agent per la durata del deploy = niente heal spurio.
 AGENT_WAS_ACTIVE=0
 if systemctl is-active --quiet "$AGENT"; then
   AGENT_WAS_ACTIVE=1
@@ -60,22 +84,29 @@ restart_agent() {
 }
 trap restart_agent EXIT
 
-# --- 4. swap container: rm -f (SIGKILL immediato) + run
-docker rm -f "$NAME" 2>/dev/null || true
-docker run -d --name "$NAME" --restart unless-stopped \
-  -p "$PUBLISH" --env-file "$REPO/demo/backend/.env" "$IMAGE"
-
-# --- 5. attendi healthcheck
-echo "==> attendo healthcheck..."
-for _ in $(seq 1 20); do
-  status=$(docker inspect -f '{{.State.Health.Status}}' "$NAME" 2>/dev/null || echo unknown)
-  [ "$status" = "healthy" ] && break
-  sleep 2
+# --- 4. swap di ogni container: rm -f (SIGKILL immediato) + run
+for row in "${INSTANCES[@]}"; do
+  read -r VERT NAME HOST_PORT <<< "$row"
+  echo "==> swap $NAME (VERTICAL=$VERT, 127.0.0.1:$HOST_PORT)"
+  docker rm -f "$NAME" 2>/dev/null || true
+  docker run -d --name "$NAME" --restart unless-stopped \
+    -e "VERTICAL=$VERT" \
+    -p "127.0.0.1:$HOST_PORT:$INTERNAL_PORT" \
+    --env-file "$ENV_FILE" "$IMAGE"
 done
-docker ps --filter "name=$NAME" --format '{{.Names}}  {{.Status}}'
-echo "--- health ---"
-curl -s http://127.0.0.1:3005/health; echo
-echo "--- domande (controllo testo) ---"
-curl -s http://127.0.0.1:3005/domande | head -c 200; echo
+
+# --- 5. attendi healthcheck di tutti
+echo "==> attendo healthcheck..."
+for row in "${INSTANCES[@]}"; do
+  read -r VERT NAME HOST_PORT <<< "$row"
+  for _ in $(seq 1 20); do
+    status=$(docker inspect -f '{{.State.Health.Status}}' "$NAME" 2>/dev/null || echo unknown)
+    [ "$status" = "healthy" ] && break
+    sleep 2
+  done
+  docker ps --filter "name=$NAME" --format '{{.Names}}  {{.Status}}'
+  echo "--- health $NAME (VERTICAL=$VERT) ---"
+  curl -s "http://127.0.0.1:$HOST_PORT/health"; echo
+done
 
 # --- 6. l'Agent riparte dal trap EXIT

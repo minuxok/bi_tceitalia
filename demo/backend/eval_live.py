@@ -311,8 +311,10 @@ def main() -> int:
         "negativi_pass": n_pass, "negativi_tot": n_tot,
         "dettaglio": risultati,
     }
+    out["verticale"] = settings.vertical
     out["interrotto_per_quota"] = quota_finita
-    dest = settings.golden_path.parent / "last_run.json"
+    suffisso = "" if settings.vertical == "acme" else f"_{settings.vertical}"
+    dest = settings.golden_path.parent / f"last_run{suffisso}.json"
     dest.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nDettaglio salvato in {dest}")
 

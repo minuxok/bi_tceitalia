@@ -17,7 +17,36 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+# --- Verticali demo -------------------------------------------------------
+# Un "verticale" = un bundle di risorse (DB + viste ai_bi_* + glossario +
+# domande d'oro). Il motore non cambia: si scambiano solo questi 4 file.
+_VERTICALS: dict[str, dict[str, str]] = {
+    "acme": {  # gestionale / distribuzione arredo
+        "db": "../db/acme.db",
+        "views": "views.sql",
+        "glossario": "glossario.yaml",
+        "golden": "golden_questions.yaml",
+    },
+    "ecom": {  # e-commerce "Nuvola Shop" (abbigliamento/calzature)
+        "db": "../db/nuvola.db",
+        "views": "views_ecom.sql",
+        "glossario": "glossario_ecom.yaml",
+        "golden": "golden_questions_ecom.yaml",
+    },
+}
+
+_VERTICAL = (os.getenv("VERTICAL", "acme").strip().lower() or "acme")
+if _VERTICAL not in _VERTICALS:
+    raise SystemExit(
+        f"VERTICAL='{_VERTICAL}' non valido. Valori ammessi: {', '.join(_VERTICALS)}"
+    )
+_BUNDLE = _VERTICALS[_VERTICAL]
+
+
 class Settings:
+    # verticale attivo (acme | ecom), fissato all'avvio da VERTICAL
+    vertical: str = _VERTICAL
+
     # --- LLM ---
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "gemini/gemini-2.5-flash")
@@ -29,7 +58,8 @@ class Settings:
     llm_reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "low")
 
     # --- DB ---
-    _db_path_raw: str = os.getenv("DB_PATH", "../db/acme.db")
+    # Vuoto = derivato dal verticale attivo. DB_PATH lo forza a un file custom.
+    _db_path_raw: str = os.getenv("DB_PATH", "").strip() or _BUNDLE["db"]
 
     # --- limiti query ---
     sql_row_limit: int = _int("SQL_ROW_LIMIT", 1000)
@@ -47,9 +77,9 @@ class Settings:
 
     # --- percorsi risorse ---
     log_dir: Path = (BASE_DIR / os.getenv("LOG_DIR", "./logs")).resolve()
-    views_path: Path = DEMO_DIR / "semantic" / "views.sql"
-    glossario_path: Path = DEMO_DIR / "semantic" / "glossario.yaml"
-    golden_path: Path = DEMO_DIR / "eval" / "golden_questions.yaml"
+    views_path: Path = DEMO_DIR / "semantic" / _BUNDLE["views"]
+    glossario_path: Path = DEMO_DIR / "semantic" / _BUNDLE["glossario"]
+    golden_path: Path = DEMO_DIR / "eval" / _BUNDLE["golden"]
 
     @property
     def db_path(self) -> Path:

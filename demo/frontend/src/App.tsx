@@ -1,5 +1,6 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import Widget from './Widget'
+import { VERTICALS, VERTICALE_DEFAULT } from './verticals'
 import './App.css'
 
 /* Landing page pubblica di "TCE Analytics System".
@@ -13,15 +14,15 @@ const MAILTO =
   `&body=${encodeURIComponent(
     'Salve,\n' +
       'vorremmo vedere una demo del sistema sui nostri dati.\n\n' +
-      'Gestionale in uso: \n' +
+      'Gestionale o piattaforma e-commerce in uso: \n' +
       'Tipo di database: \n' +
       'Aree dati di interesse: \n',
   )}`
 
 const FAQ: { q: string; a: string }[] = [
   {
-    q: 'Dobbiamo cambiare il nostro gestionale?',
-    a: 'No. Il sistema legge i dati che avete già, non modifica il gestionale e non richiede migrazioni. Si affianca a quello che usate.',
+    q: 'Dobbiamo cambiare gestionale o piattaforma e-commerce?',
+    a: 'No. Il sistema legge i dati che avete già, non modifica il gestionale né l’e-commerce e non richiede migrazioni. Si affianca a quello che usate.',
   },
   {
     q: 'L’AI può inventarsi i numeri?',
@@ -40,7 +41,7 @@ const FAQ: { q: string; a: string }[] = [
     a: 'Con un database accessibile e schema noto, tipicamente una o due settimane, più una settimana di test con utenti reali prima del via libera.',
   },
   {
-    q: 'E se il gestionale non è raggiungibile dall’esterno?',
+    q: 'E se il database non è raggiungibile dall’esterno?',
     a: 'Si usa la sincronizzazione periodica: i dati arrivano via API o export in un archivio gestito da noi, con una latenza dichiarata (per esempio aggiornati ogni ora).',
   },
   {
@@ -82,8 +83,8 @@ function Hero() {
           <p className="lp-eyebrow">Business intelligence conversazionale</p>
           <h1>Fai domande ai tuoi dati aziendali. In italiano.</h1>
           <p className="lp-hero-sub">
-            Il gestionale risponde con numeri, tabelle e grafici in pochi secondi. In sola
-            lettura, senza esportare niente.
+            Il tuo gestionale o e-commerce risponde con numeri, tabelle e grafici in pochi
+            secondi. In sola lettura, senza esportare niente.
           </p>
           <div className="lp-hero-actions">
             <a className="lp-btn lp-btn-primary" href={MAILTO}>
@@ -269,16 +270,38 @@ function Transparency() {
 }
 
 function DemoSection() {
+  const [vid, setVid] = useState(VERTICALE_DEFAULT.id)
+  const v = VERTICALS.find((x) => x.id === vid) ?? VERTICALE_DEFAULT
   return (
     <section className="lp-section is-alt" id="demo">
       <div className="lp-wrap lp-demo-inner">
         <h2 className="lp-h2">Provala adesso</h2>
         <p className="lp-lead">
-          Dati di un’azienda di esempio, &ldquo;Acme Srl&rdquo;. Nessun dato reale, niente viene
-          memorizzato.
+          Stesso motore, due mondi. Scegli il tipo di attività e fai una domanda ai suoi dati.
         </p>
+        <div className="lp-seg" role="tablist" aria-label="Tipo di attività">
+          {VERTICALS.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={x.id === vid}
+              className={'lp-seg-btn' + (x.id === vid ? ' is-on' : '')}
+              onClick={() => setVid(x.id)}
+            >
+              {x.label}
+            </button>
+          ))}
+        </div>
+        <p className="lp-demo-note">{v.lead}</p>
         <div className="lp-demo-mount">
-          <Widget ctaHref="#contatto" ctaLabel="Prenota una demo" />
+          <Widget
+            key={v.id}
+            apiBase={v.apiBase}
+            storeName={v.store}
+            ctaHref="#contatto"
+            ctaLabel="Prenota una demo"
+          />
         </div>
       </div>
     </section>
@@ -334,9 +357,10 @@ function Connectivity() {
   return (
     <section className="lp-section is-alt" id="collegamento">
       <div className="lp-wrap">
-        <h2 className="lp-h2">Due modi per collegarci al tuo gestionale</h2>
+        <h2 className="lp-h2">Due modi per collegarci ai tuoi dati</h2>
         <p className="lp-lead">
-          Si sceglie in fase di assessment, in base a come sono raggiungibili i dati.
+          Si sceglie in fase di assessment, in base a come sono raggiungibili i dati del
+          gestionale o dell’e-commerce.
         </p>
         <div className="lp-panels">
           <div className="lp-panel is-primary">
@@ -385,8 +409,10 @@ function FinalCta() {
   return (
     <section className="lp-section is-alt lp-final" id="contatto">
       <div className="lp-wrap">
-        <h2 className="lp-h2">Colleghiamo l’AI al tuo gestionale, in sola lettura</h2>
-        <p className="lp-lead">Ti mostriamo in 15 minuti come funziona sui tuoi dati.</p>
+        <h2 className="lp-h2">Colleghiamo l’AI ai tuoi dati, in sola lettura</h2>
+        <p className="lp-lead">
+          Gestionale o e-commerce: ti mostriamo in 15 minuti come funziona sui tuoi dati.
+        </p>
         <a className="lp-btn lp-btn-primary" href={MAILTO}>
           Prenota una demo
         </a>

@@ -6,22 +6,56 @@ import yaml
 
 from .config import settings
 
-# Descrizione curata di ogni vista. Le COLONNE sono lette a runtime dal DB
-# (sempre allineate), qui sta solo il "a cosa serve".
-VIEW_DESCRIPTIONS: dict[str, str] = {
-    "ai_bi_vendite":  "Una riga per riga d'ordine. Base per fatturato, margine e quantita' "
-                      "per cliente, prodotto, categoria, agente, area, regione e tempo "
-                      "(anno, mese, anno_mese). Esclude ordini in bozza e annullati.",
-    "ai_bi_ordini":   "Una riga per ordine (testata) con totale_netto, totale_ivato, n_righe "
-                      "e stato_ordine normalizzato. Per numero di ordini e valore medio ordine.",
-    "ai_bi_clienti":  "Una riga per cliente con primo_ordine, ultimo_ordine, fatturato_12m, "
-                      "num_ordini_12m e flag attivo (1 = ordine negli ultimi 6 mesi).",
-    "ai_bi_scaduto":  "Una riga per scadenza NON incassata e gia' scaduta. Ha importo, "
-                      "giorni_ritardo e fascia_ritardo ('0-30','31-60','61-90','oltre 90').",
-    "ai_bi_prodotti": "Una riga per prodotto con quantita_12m, fatturato_12m, num_ordini_12m, "
-                      "ultima_vendita e stato_prodotto. quantita_12m = 0 -> prodotto fermo.",
-    "ai_bi_agenti":   "Una riga per agente con num_clienti, fatturato_12m e fatturato_ytd.",
+# Descrizione curata di ogni vista, per verticale. Le COLONNE sono lette a
+# runtime dal DB (sempre allineate), qui sta solo il "a cosa serve".
+_VIEW_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    "acme": {
+        "ai_bi_vendite":  "Una riga per riga d'ordine. Base per fatturato, margine e quantita' "
+                          "per cliente, prodotto, categoria, agente, area, regione e tempo "
+                          "(anno, mese, anno_mese). Esclude ordini in bozza e annullati.",
+        "ai_bi_ordini":   "Una riga per ordine (testata) con totale_netto, totale_ivato, n_righe "
+                          "e stato_ordine normalizzato. Per numero di ordini e valore medio ordine.",
+        "ai_bi_clienti":  "Una riga per cliente con primo_ordine, ultimo_ordine, fatturato_12m, "
+                          "num_ordini_12m e flag attivo (1 = ordine negli ultimi 6 mesi).",
+        "ai_bi_scaduto":  "Una riga per scadenza NON incassata e gia' scaduta. Ha importo, "
+                          "giorni_ritardo e fascia_ritardo ('0-30','31-60','61-90','oltre 90').",
+        "ai_bi_prodotti": "Una riga per prodotto con quantita_12m, fatturato_12m, num_ordini_12m, "
+                          "ultima_vendita e stato_prodotto. quantita_12m = 0 -> prodotto fermo.",
+        "ai_bi_agenti":   "Una riga per agente con num_clienti, fatturato_12m e fatturato_ytd.",
+    },
+    "ecom": {
+        "ai_bi_vendite":  "Una riga per riga d'ordine dell'e-commerce. Base per fatturato, margine "
+                          "e quantita' per prodotto, categoria, genere, canale (sorgente), "
+                          "dispositivo, regione, provincia e tempo (anno, mese, anno_mese, ora). "
+                          "ricavo_lordo = IVA inclusa, ricavo_netto = imponibile. Esclude ordini "
+                          "annullati e in attesa di pagamento; i rimborsati restano nel venduto.",
+        "ai_bi_ordini":   "Una riga per ordine (testata) con valore_merce_lordo/netto, n_articoli, "
+                          "n_righe, sconto_coupon, spedizione_costo, totale_ordine, stato_ordine "
+                          "normalizzato, fascia_oraria, con_coupon e tipo_cliente ('Nuovo' al primo "
+                          "ordine valido, altrimenti 'Di ritorno'). Per numero ordini, AOV (valore "
+                          "medio ordine) e fatturato nuovi vs di ritorno.",
+        "ai_bi_clienti":  "Una riga per cliente registrato: canale_acquisizione, newsletter, "
+                          "primo_ordine, ultimo_ordine, num_ordini, num_ordini_12m, speso_totale, "
+                          "speso_12m (LTV, IVA inclusa, al lordo dei resi), valore_medio_ordine, "
+                          "giorni_da_ultimo_ordine, ricorrente (>=2 ordini) e stato_cliente "
+                          "('Mai acquistato' | 'Attivo' <=180gg | 'A rischio' 181-365gg | 'Perso' >365gg).",
+        "ai_bi_resi":     "Una riga per prodotto reso: importo_rimborsato (lordo) e "
+                          "importo_rimborsato_netto, motivo ('Taglia errata', 'Difettoso', ...), "
+                          "quantita, categoria/genere prodotto, canale, regione, giorni_dopo_consegna. "
+                          "Il venduto sta in ai_bi_vendite: qui c'e' solo il reso.",
+        "ai_bi_prodotti": "Una riga per prodotto: prezzo_listino, costo_unitario, margine_pct, "
+                          "stato_prodotto, quantita_12m, quantita_resa_12m, tasso_reso_pct, "
+                          "fatturato_12m, num_ordini_12m, ultima_vendita. quantita_12m = 0 -> prodotto fermo.",
+        "ai_bi_traffico": "Una riga per (giorno, canale) di acquisizione: sessioni, utenti, "
+                          "aggiunte_carrello, checkout_avviati, ordini, ricavo_netto, "
+                          "conversion_rate_pct (ordini/sessioni*100) e ricavo_per_sessione. "
+                          "UNICA fonte per conversion rate e funnel di traffico.",
+    },
 }
+
+VIEW_DESCRIPTIONS: dict[str, str] = _VIEW_DESCRIPTIONS.get(
+    settings.vertical, _VIEW_DESCRIPTIONS["acme"]
+)
 
 
 _TYPEOF_SQL = {

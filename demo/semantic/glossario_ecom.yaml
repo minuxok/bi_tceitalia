@@ -1,0 +1,182 @@
+# =====================================================================
+# GLOSSARIO SEMANTICO - demo "Nuvola Shop" (verticale E-COMMERCE)
+#
+# Viene iniettato nel system prompt del motore Text-to-SQL.
+# Ogni voce traduce un termine di business in una definizione operativa
+# sulle viste ai_bi_*. In produzione questo file e' versionato per cliente.
+#
+# Data di riferimento del dataset: 2026-08-27
+# (nelle viste: (SELECT data_riferimento FROM ai_bi_meta))
+# =====================================================================
+
+termini:
+
+  fatturato: >
+    SUM(ricavo_netto) dalla vista ai_bi_vendite. E' l'imponibile (IVA esclusa),
+    calcolato sul prezzo effettivamente pagato per riga. Include gli ordini
+    'Rimborsato' (il rimborso e' tracciato a parte in ai_bi_resi) ed esclude
+    ordini annullati e in attesa di pagamento. NON e' al netto dei resi, salvo
+    richiesta esplicita ("fatturato netto resi").
+
+  fatturato lordo IVA / incassato lordo: >
+    SUM(ricavo_lordo) da ai_bi_vendite (prezzo pagato, IVA inclusa),
+    equivalente a SUM(ricavo_netto) * 1,22.
+
+  fatturato netto resi: >
+    SUM(ricavo_netto) da ai_bi_vendite nel periodo, meno
+    SUM(importo_rimborsato_netto) da ai_bi_resi nello stesso periodo
+    (confronto per data: data_ordine vs data_reso).
+
+  incassato / incassi / cassa: >
+    Le viste tracciano gli ORDINI, non gli incassi effettivi sul conto
+    (payout del gateway di pagamento). Se l'utente chiede "quanto ho incassato"
+    senza altra precisazione, rispondi con tipo = "chiarimento" chiedendo se
+    intende il fatturato degli ordini oppure gli accrediti reali del gateway
+    (questi ultimi non disponibili nel dataset).
+
+  margine: >
+    SUM(margine) da ai_bi_vendite, cioe' ricavo_netto - costo, dove
+    costo = quantita * costo di acquisto unitario del prodotto (IVA esclusa).
+
+  margine percentuale: >
+    SUM(margine) / SUM(ricavo_netto) * 100 sulla vista ai_bi_vendite.
+
+  ordine valido / venduto reale: >
+    ordine con stato_ordine diverso da 'Annullato' e 'In attesa'.
+    Le viste ai_bi_vendite e ai_bi_ordini sono gia' filtrate cosi'.
+
+  AOV / valore medio ordine / scontrino medio: >
+    AVG(valore_merce_lordo) da ai_bi_ordini (valore merce IVA inclusa, prima di
+    spese di spedizione e sconti coupon). Per la versione IVA esclusa usare
+    valore_merce_netto; per l'incasso totale dell'ordine usare totale_ordine.
+
+  conversion rate / tasso di conversione / CR: >
+    SUM(ordini) / SUM(sessioni) * 100 dalla vista ai_bi_traffico.
+    Puo' essere segmentato per canale, per anno_mese o per data. Non calcolare
+    il conversion rate senza la vista ai_bi_traffico (le sessioni stanno solo li').
+
+  sessioni / traffico / visite: >
+    SUM(sessioni) da ai_bi_traffico (una riga per giorno e canale di acquisizione).
+
+  carrello abbandonato / abbandono checkout: >
+    checkout avviati che non si trasformano in ordine. In ai_bi_traffico:
+    SUM(checkout_avviati) - SUM(ordini), oppure come tasso
+    (1 - SUM(ordini) / SUM(checkout_avviati)) * 100.
+
+  tasso di reso / return rate: >
+    a valore (default): SUM(importo_rimborsato_netto) da ai_bi_resi /
+    SUM(ricavo_netto) da ai_bi_vendite * 100, sullo stesso periodo/dimensione.
+    A quantita': SUM(quantita) di ai_bi_resi / SUM(quantita) di ai_bi_vendite.
+    Per singolo prodotto usare direttamente tasso_reso_pct in ai_bi_prodotti.
+
+  reso / rimborso: >
+    riga di ai_bi_resi. Ha importo_rimborsato (IVA inclusa),
+    importo_rimborsato_netto (imponibile), motivo e giorni_dopo_consegna.
+
+  cliente nuovo / primo acquisto: >
+    ordine con tipo_cliente = 'Nuovo' in ai_bi_ordini (e' il primo ordine
+    valido di quel cliente). Gli altri ordini hanno tipo_cliente = 'Di ritorno'.
+
+  cliente di ritorno / ricorrente: >
+    tipo_cliente = 'Di ritorno' in ai_bi_ordini (ordine successivo al primo).
+    A livello anagrafico: ricorrente = 1 in ai_bi_clienti (>= 2 ordini validi).
+
+  stato del cliente: >
+    stato_cliente in ai_bi_clienti: 'Attivo' (ultimo ordine <= 180 giorni),
+    'A rischio' (181-365), 'Perso' (> 365), 'Mai acquistato' (nessun ordine).
+
+  LTV / valore del cliente / speso totale: >
+    speso_totale in ai_bi_clienti (valore merce lordo IVA inclusa di tutti gli
+    ordini validi del cliente, non al netto dei resi). Variante 12 mesi: speso_12m.
+
+  tasso di riacquisto / repeat purchase rate: >
+    quota di clienti con num_ordini >= 2 sul totale dei clienti che hanno
+    almeno un ordine: 100.0 * SUM(ricorrente) / SUM(CASE WHEN num_ordini > 0 THEN 1 END)
+    da ai_bi_clienti.
+
+  canale / sorgente / canale di acquisizione: >
+    sorgente in ai_bi_vendite e ai_bi_ordini; canale in ai_bi_traffico e
+    canale_acquisizione in ai_bi_clienti. Valori: Organico, Google Ads,
+    Meta Ads, Email, Referral, Diretto.
+
+  coupon / codice sconto: >
+    campo coupon in ai_bi_ordini (NULL se assente); con_coupon = 1/0.
+    sconto_coupon = valore dello sconto applicato all'ordine (IVA inclusa).
+
+  best seller / prodotti piu' venduti: >
+    prodotti ordinati per quantita_12m o fatturato_12m decrescente in ai_bi_prodotti.
+
+  prodotto fermo / invenduto: >
+    prodotto con quantita_12m = 0 in ai_bi_prodotti.
+
+  categoria: >
+    categoria_prodotto in ai_bi_vendite / ai_bi_prodotti / ai_bi_resi
+    (Abbigliamento donna, Abbigliamento uomo, Calzature, Accessori, Sport, Outdoor).
+
+  genere: >
+    genere_prodotto (Donna, Uomo, Unisex). Da non confondere con la categoria.
+
+  dispositivo: >
+    dispositivo in ai_bi_vendite / ai_bi_ordini (Desktop, Mobile, Tablet).
+
+  fascia oraria: >
+    fascia_oraria in ai_bi_ordini: 'Notte' (0-6), 'Mattina' (7-12),
+    'Pomeriggio' (13-18), 'Sera' (19-23). L'ora esatta e' nel campo ora.
+
+  giorni di evasione / tempo di consegna: >
+    giorni_evasione in ai_bi_ordini (data_consegna - data_ordine, solo ordini consegnati).
+
+  regione / provincia: >
+    regione e provincia in ai_bi_vendite / ai_bi_ordini sono l'indirizzo di
+    SPEDIZIONE dell'ordine. citta/provincia/regione in ai_bi_clienti sono la
+    residenza dell'account.
+
+  anno in corso / anno corrente / YTD: >
+    anno = 2026 (anno della data di riferimento). Su ai_bi_vendite/ai_bi_ordini
+    usare la colonna anno.
+
+  anno scorso: >
+    anno = 2025.
+
+  ultimi 6 mesi: >
+    data_ordine >= date((SELECT data_riferimento FROM ai_bi_meta), '-6 months').
+
+  ultimi 12 mesi / ultimo anno: >
+    data_ordine >= date((SELECT data_riferimento FROM ai_bi_meta), '-12 months').
+    Per ai_bi_traffico usare la colonna data; per ai_bi_resi la colonna data_reso.
+
+  trimestre: >
+    raggruppare per (anno, ((mese - 1) / 3) + 1). Etichetta in formato ordinabile
+    cronologicamente: anno || '-T' || (((mese - 1) / 3) + 1), es. '2025-T1'.
+
+note_per_il_modello:
+  - Usa SEMPRE e solo le viste con prefisso ai_bi_. Non esistono altre tabelle.
+  - Non usare la colonna email: e' PII e non e' esposta nelle viste.
+  - Per le date usa le funzioni SQLite (date(), strftime()), non sintassi Postgres.
+  - Il termine "fatturato" senza altra specifica = imponibile (ricavo_netto),
+    NON IVA inclusa e NON al netto dei resi.
+  - Il conversion rate e le sessioni si calcolano SOLO sulla vista ai_bi_traffico.
+  - >-
+    Non esistono dati di spesa pubblicitaria (ad spend, budget campagne): ROAS,
+    CPA, CPC e simili NON sono calcolabili. In quel caso rispondi
+    tipo = "non_disponibile" spiegando che manca la spesa advertising.
+  - >-
+    Se la domanda non indica un periodo, NON inventare un filtro temporale;
+    usa tutti i dati disponibili nella vista. Aggiungi un filtro di data solo
+    se la domanda lo chiede (es. "nel 2025", "ultimi 6 mesi") o implica
+    chiaramente la recency (es. "attualmente", "di recente", "ad oggi").
+  - >-
+    Se la domanda e' vaga su PIU' aspetti insieme (sia periodo sia metrica,
+    come "come sta andando il negozio?"), fai una domanda di chiarimento
+    invece di indovinare.
+  - >-
+    Se la domanda e' ambigua su un termine non presente nel glossario,
+    fai una domanda di chiarimento invece di indovinare.
+  - >-
+    Quando la domanda chiede di CONFRONTARE una metrica tra due (o piu')
+    periodi o valori specifici (es. "confronta il fatturato per categoria
+    tra 2025 e 2026"), restituisci un PIVOT: una riga per dimensione con una
+    colonna numerica per ciascun periodo
+    (SUM(CASE WHEN anno = 2025 THEN ricavo_netto END) AS fatturato_2025, ...),
+    NON una riga per (dimensione, periodo). Ordina per il periodo piu' recente
+    decrescente e imposta viz.tipo = "barre_raggruppate".
