@@ -13,6 +13,9 @@ export interface VerticalDef {
   store: string
   apiBase: string
   lead: string
+  /** Link opzionale alla sorgente reale dei dati (mostrato sotto il lead). */
+  sourceUrl?: string
+  sourceLabel?: string
 }
 
 const env = import.meta.env
@@ -43,7 +46,9 @@ export const VERTICALS: VerticalDef[] = [
     store: 'Gestionale acquisti',
     apiBase: (env.VITE_API_BASE_GEST as string | undefined) || '/api-gest',
     lead:
-      'Collegamento in tempo reale a un gestionale esterno (acquisti e preventivi) tramite un utente di database in sola lettura. I dati sono fittizi.',
+      'Collegamento in tempo reale a un gestionale sviluppato da noi (acquisti e preventivi), tramite un utente di database in sola lettura. I dati sono fittizi.',
+    sourceUrl: 'https://gest.appfreeway.it/login',
+    sourceLabel: 'Apri il gestionale da cui arrivano i dati',
   },
 ]
 

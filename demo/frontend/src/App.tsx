@@ -294,6 +294,13 @@ function DemoSection() {
           ))}
         </div>
         <p className="lp-demo-note">{v.lead}</p>
+        {v.sourceUrl && (
+          <p className="lp-demo-source">
+            <a href={v.sourceUrl} target="_blank" rel="noopener noreferrer">
+              {v.sourceLabel ?? 'Apri la sorgente dati'} ↗
+            </a>
+          </p>
+        )}
         <div className="lp-demo-mount">
           <Widget
             key={v.id}
