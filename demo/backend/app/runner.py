@@ -1,4 +1,10 @@
-"""Esecuzione della query validata su SQLite in sola lettura, con timeout."""
+"""Esecuzione della query validata in sola lettura, con timeout.
+
+Due motori, scelti dal verticale (settings.db_engine):
+  * sqlite -> file .db locale (acme, ecom) — questo modulo;
+  * mysql  -> MySQL/MariaDB reale (gest) — delega a mysql_backend, dopo aver
+    iniettato le viste ai_bi_* come CTE (virtual_views).
+"""
 from __future__ import annotations
 
 import sqlite3
@@ -33,6 +39,21 @@ def _connessione_ro() -> sqlite3.Connection:
 
 
 def esegui(sql: str) -> Risultato:
+    """Esegue una query GIÀ validata da valida_e_normalizza().
+
+    Per i verticali su DB reale (mysql) antepone le viste ai_bi_* come CTE e
+    delega a mysql_backend; per sqlite esegue qui sotto sul file .db.
+    """
+    if settings.db_engine == "mysql":
+        from .mysql_backend import esegui_mysql
+        from .virtual_views import wrap_with_ctes
+
+        return esegui_mysql(wrap_with_ctes(sql))
+
+    return _esegui_sqlite(sql)
+
+
+def _esegui_sqlite(sql: str) -> Risultato:
     con = _connessione_ro()
     deadline = time.monotonic() + settings.sql_timeout_s
     scattato = {"timeout": False}

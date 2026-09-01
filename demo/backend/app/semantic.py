@@ -23,6 +23,40 @@ _VIEW_DESCRIPTIONS: dict[str, dict[str, str]] = {
                           "ultima_vendita e stato_prodotto. quantita_12m = 0 -> prodotto fermo.",
         "ai_bi_agenti":   "Una riga per agente con num_clienti, fatturato_12m e fatturato_ytd.",
     },
+    "gest": {
+        "ai_bi_meta":       "Una sola riga. data_riferimento = ultima data presente nei dati "
+                            "('oggi'); n_preventivi e n_ordini_fornitore = totali.",
+        "ai_bi_clienti":    "Una riga per cliente. num_preventivi / num_preventivi_accettati, "
+                            "valore_accettato(_12m) (imponibile dei preventivi accettati), "
+                            "tasso_accettazione_pct, primo/ultimo_preventivo, attivo_recente "
+                            "(1 = preventivo negli ultimi 6 mesi). Contiene i contatti "
+                            "(email, telefono, indirizzo, partita_iva) - sono dati fittizi.",
+        "ai_bi_fornitori":  "Una riga per fornitore. num_ordini, valore_ordinato(_12m) "
+                            "(imponibile), consegne_totali / consegne_in_ritardo e "
+                            "pct_consegne_in_ritardo (consegna effettiva oltre la prevista). "
+                            "Contiene i contatti (dati fittizi).",
+        "ai_bi_prodotti":   "Una riga per articolo. prezzo_acquisto, prezzo_vendita, "
+                            "margine_unitario, margine_pct, giacenza, giacenza_minima, "
+                            "sotto_scorta (1 = giacenza < minima), is_composto, "
+                            "quantita_offerta_12m / quantita_ordinata_12m, ultima_offerta, "
+                            "ultimo_ordine.",
+        "ai_bi_preventivi": "Una riga per preventivo/offerta a cliente (testata). stato "
+                            "('bozza','inviata','accettata','rifiutata','scaduta'), accettato "
+                            "(1/0), totale_imponibile/iva/generale, n_righe, anno/mese/anno_mese "
+                            "di data_offerta. 'accettata' e' l'unico segnale di vendita.",
+        "ai_bi_righe_preventivo": "Una riga per riga di preventivo. quantita, prezzo_unitario, "
+                            "sconto_percentuale, iva_percentuale, totale_riga (IVA esclusa, "
+                            "gia' al netto sconto), categoria prodotto, stato_preventivo, "
+                            "accettato. Per analisi per prodotto/categoria/cliente.",
+        "ai_bi_ordini_fornitore": "Una riga per ordine d'acquisto a fornitore (testata). stato "
+                            "('bozza','inviato','confermato','parzialmente_ricevuto','ricevuto',"
+                            "'annullato'), ricevuto/annullato (1/0), totale_imponibile/iva/generale, "
+                            "giorni_ritardo_consegna (effettiva - prevista), n_righe.",
+        "ai_bi_righe_ordine_fornitore": "Una riga per riga d'ordine d'acquisto. quantita_ordinata, "
+                            "quantita_ricevuta, quantita_mancante, prezzo_unitario, totale_riga, "
+                            "categoria prodotto, fornitore, stato_ordine. Per acquistato per "
+                            "prodotto/categoria/fornitore ed evasione ordini.",
+    },
     "ecom": {
         "ai_bi_vendite":  "Una riga per riga d'ordine dell'e-commerce. Base per fatturato, margine "
                           "e quantita' per prodotto, categoria, genere, canale (sorgente), "
@@ -53,9 +87,7 @@ _VIEW_DESCRIPTIONS: dict[str, dict[str, str]] = {
     },
 }
 
-VIEW_DESCRIPTIONS: dict[str, str] = _VIEW_DESCRIPTIONS.get(
-    settings.vertical, _VIEW_DESCRIPTIONS["acme"]
-)
+VIEW_DESCRIPTIONS: dict[str, str] = _VIEW_DESCRIPTIONS.get(settings.vertical, {})
 
 
 _TYPEOF_SQL = {
@@ -69,13 +101,19 @@ _TYPEOF_SQL = {
 
 @lru_cache(maxsize=1)
 def get_views_schema() -> dict[str, list[tuple[str, str]]]:
-    """{nome_vista: [(colonna, tipo), ...]} letto dal DB demo.
+    """{nome_vista: [(colonna, tipo), ...]}.
 
-    Le colonne calcolate di una vista spesso non hanno un tipo dichiarato in
-    PRAGMA table_info: in quel caso lo deduciamo dai dati con typeof(), così
-    il prompt non etichetta come TEXT colonne che sono INTEGER/REAL
-    (es. `attivo` 0/1) inducendo il modello a confronti sbagliati (attivo = '1').
+    sqlite: letto dal file .db (le viste ai_bi_* esistono davvero).
+    mysql : ottenuto eseguendo il corpo di ogni vista virtuale con LIMIT 0.
     """
+    if settings.db_engine == "mysql":
+        from .mysql_backend import introspect_views
+        return introspect_views()
+
+    # Le colonne calcolate di una vista spesso non hanno un tipo dichiarato in
+    # PRAGMA table_info: in quel caso lo deduciamo dai dati con typeof(), così
+    # il prompt non etichetta come TEXT colonne che sono INTEGER/REAL
+    # (es. `attivo` 0/1) inducendo il modello a confronti sbagliati (attivo = '1').
     con = sqlite3.connect(f"file:{settings.db_path}?mode=ro", uri=True)
     try:
         views = [r[0] for r in con.execute(
@@ -104,6 +142,10 @@ def get_views_schema() -> dict[str, list[tuple[str, str]]]:
 
 @lru_cache(maxsize=1)
 def get_data_riferimento() -> str:
+    if settings.db_engine == "mysql":
+        from .mysql_backend import data_riferimento
+        return data_riferimento()
+
     con = sqlite3.connect(f"file:{settings.db_path}?mode=ro", uri=True)
     try:
         row = con.execute("SELECT data_riferimento FROM ai_bi_meta").fetchone()

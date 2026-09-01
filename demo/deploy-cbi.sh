@@ -2,13 +2,14 @@
 # =====================================================================
 # Deploy del BACKEND Conversational_BI come container Docker sul VPS.
 #
-# Due verticali = DUE container dalla STESSA immagine (stesso codice,
+# Tre verticali = TRE container dalla STESSA immagine (stesso codice,
 # env VERTICAL diverso):
-#     conversational-bi        VERTICAL=acme   127.0.0.1:3005 -> :3005
-#     conversational-bi-ecom   VERTICAL=ecom   127.0.0.1:3006 -> :3005
-# La porta INTERNA resta 3005 per entrambi (Dockerfile invariato);
-# cambia solo la porta pubblicata sull'host. Il reverse proxy Apache
-# instrada /api/ -> 3005 e /api-ecom/ -> 3006 (vedi docs/SERVER.md).
+#     conversational-bi        VERTICAL=acme  127.0.0.1:3005 -> :3005  (SQLite)
+#     conversational-bi-ecom   VERTICAL=ecom  127.0.0.1:3006 -> :3005  (SQLite)
+#     conversational-bi-gest   VERTICAL=gest  127.0.0.1:3007 -> :3005  (MySQL reale)
+# La porta INTERNA resta 3005 per tutti (Dockerfile invariato); cambia solo
+# la porta pubblicata sull'host. Il reverse proxy Apache instrada
+# /api/ -> 3005, /api-ecom/ -> 3006, /api-gest/ -> 3007 (vedi docs/SERVER.md).
 #
 # Uso (da Putty, sul server):
 #     ~/deploy-cbi.sh                # symlink a questo file
@@ -36,10 +37,14 @@ ENV_FILE="$REPO/demo/backend/.env"
 AGENT=aegis-agent
 INTERNAL_PORT=3005
 
-# verticale -> "nome_container porta_host"
+# verticale -> "nome_container porta_host [env-extra separati da virgola]"
+# L'env-extra e' iniettato con -e su QUEL solo container (es. gest -> mysql
+# reale). Le credenziali DB_HOST/DB_NAME/DB_USER/DB_PASSWORD stanno nel
+# --env-file comune: acme/ecom (sqlite) le ignorano.
 INSTANCES=(
   "acme conversational-bi 3005"
   "ecom conversational-bi-ecom 3006"
+  "gest conversational-bi-gest 3007 DB_ENGINE=mysql"
 )
 
 cd "$REPO"
@@ -86,11 +91,16 @@ trap restart_agent EXIT
 
 # --- 4. swap di ogni container: rm -f (SIGKILL immediato) + run
 for row in "${INSTANCES[@]}"; do
-  read -r VERT NAME HOST_PORT <<< "$row"
-  echo "==> swap $NAME (VERTICAL=$VERT, 127.0.0.1:$HOST_PORT)"
+  read -r VERT NAME HOST_PORT EXTRA <<< "$row"
+  extra_env=()
+  if [ -n "${EXTRA:-}" ]; then
+    IFS=',' read -ra _kv <<< "$EXTRA"
+    for kv in "${_kv[@]}"; do extra_env+=(-e "$kv"); done
+  fi
+  echo "==> swap $NAME (VERTICAL=$VERT, 127.0.0.1:$HOST_PORT${EXTRA:+, $EXTRA})"
   docker rm -f "$NAME" 2>/dev/null || true
   docker run -d --name "$NAME" --restart unless-stopped \
-    -e "VERTICAL=$VERT" \
+    -e "VERTICAL=$VERT" "${extra_env[@]}" \
     -p "127.0.0.1:$HOST_PORT:$INTERNAL_PORT" \
     --env-file "$ENV_FILE" "$IMAGE"
 done

@@ -23,15 +23,39 @@ _VERTICAL_PROMPT: dict[str, dict[str, str]] = {
                     "attribuzione multi-touch, giacenze di magazzino puntuali, costi per "
                     "fornitore, dati anagrafici sensibili come email o telefono)",
     },
+    "gest": {
+        "intro": "Sei l'assistente di business intelligence di un gestionale di "
+                 "acquisti e preventivi (fornitori, ordini d'acquisto, offerte ai clienti). "
+                 "Non esistono fatture o vendite: il segnale di vendita e' il preventivo "
+                 "in stato 'accettata'.",
+        "non_disp": "(es. fatture, incassi, scadenzario, marginalita' a consuntivo, "
+                    "movimenti di magazzino nel tempo, contabilita')",
+    },
+}
+
+# Note di dialetto SQL, per motore del DB.
+_DIALECT_PROMPT: dict[str, dict[str, str]] = {
+    "sqlite": {
+        "db_kind": "SQLite",
+        "date_hint": "Per le date relative usa: "
+                     "date((SELECT data_riferimento FROM ai_bi_meta), '-N months') / strftime(...).",
+        "syntax": "Sintassi SQLite (date(), strftime()), non Postgres.",
+    },
+    "mysql": {
+        "db_kind": "MariaDB/MySQL",
+        "date_hint": "\"Oggi\" e' CURDATE(). Per le date relative usa CURDATE() - INTERVAL N MONTH/DAY/YEAR; "
+                     "per il mese usa DATE_FORMAT(col, '%Y-%m'), per l'anno YEAR(col).",
+        "syntax": "Sintassi MariaDB/MySQL. Niente PRAGMA, niente strftime()/date() in stile SQLite.",
+    },
 }
 
 SYSTEM_TEMPLATE = """\
 {intro}
-Rispondi a domande in italiano trasformandole in UNA query SQL su un database SQLite,
+Rispondi a domande in italiano trasformandole in UNA query SQL su un database {db_kind},
 usando ESCLUSIVAMENTE le viste elencate sotto (tutte con prefisso ai_bi_).
 
 DATA DI RIFERIMENTO (equivale a "oggi"): {data_rif}
-Per le date relative usa: date((SELECT data_riferimento FROM ai_bi_meta), '-N months') / strftime(...).
+{date_hint}
 
 SCHEMA DELLE VISTE
 {schema}
@@ -41,8 +65,8 @@ GLOSSARIO
 
 VINCOLI SULLA QUERY
 - Solo SELECT (eventualmente con CTE WITH). Mai INSERT/UPDATE/DELETE/DDL/PRAGMA/ATTACH.
-- Solo le viste ai_bi_*. Nessun'altra tabella esiste. Niente colonne PII (email, telefono, partita IVA).
-- Sintassi SQLite (date(), strftime()), non Postgres.
+- Solo le viste ai_bi_*. Nessun'altra tabella esiste.
+- {syntax}
 - Un solo statement, senza ';' finale.
 - Includi sempre una clausola ORDER BY sensata; per i "top N" usa LIMIT N.
 
@@ -81,9 +105,13 @@ Ricorda: rispondi SOLO con il JSON richiesto.
 
 def build_messages(domanda: str) -> list[dict[str, str]]:
     vp = _VERTICAL_PROMPT.get(settings.vertical, _VERTICAL_PROMPT["acme"])
+    dp = _DIALECT_PROMPT.get(settings.sql_dialect, _DIALECT_PROMPT["sqlite"])
     system = SYSTEM_TEMPLATE.format(
         intro=vp["intro"],
         non_disp=vp["non_disp"],
+        db_kind=dp["db_kind"],
+        date_hint=dp["date_hint"],
+        syntax=dp["syntax"],
         data_rif=get_data_riferimento(),
         schema=render_schema_for_prompt(),
         glossario=render_glossario_for_prompt(),

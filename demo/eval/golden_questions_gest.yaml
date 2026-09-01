@@ -1,0 +1,233 @@
+# =====================================================================
+# DOMANDE D'ORO - verticale "gest" (gestionale acquisti + preventivi)
+#
+# Doppio uso:
+#   1) prompt precompilati sotto il widget della demo pubblica (/domande);
+#   2) base dell'harness di valutazione (eval_live.py, soglia go-live >= 90%).
+#
+# Sorgente: DB REALE c2gest (MariaDB). "Oggi" = CURDATE(): i valori attesi
+# cambiano nel tempo, quindi le sintesi sono indicative (dati a 2026-08-31).
+# Dialetto SQL: MariaDB/MySQL.
+# =====================================================================
+
+domande:
+
+  - id: G01
+    domanda: "Mostrami il valore dei preventivi accettati mese per mese nel 2026, in un grafico a barre."
+    intento: "Serie mensile di SUM(totale_imponibile) su ai_bi_preventivi con accettato = 1, anno 2026."
+    viste: [ai_bi_preventivi]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT anno_mese,
+             ROUND(SUM(totale_imponibile), 2) AS valore_accettato
+      FROM ai_bi_preventivi
+      WHERE accettato = 1 AND anno = 2026
+      GROUP BY anno_mese
+      ORDER BY anno_mese;
+    risultato_atteso_sintesi: "8 righe (2026-01 .. 2026-08), ordine di grandezza ~1-1,7 M€ al mese."
+
+  - id: G02
+    domanda: "Quali sono i 5 clienti con il maggior valore di preventivi accettati negli ultimi 12 mesi?"
+    intento: "Top-5 clienti per valore_accettato_12m dalla vista ai_bi_clienti."
+    viste: [ai_bi_clienti]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT cliente,
+             valore_accettato_12m
+      FROM ai_bi_clienti
+      ORDER BY valore_accettato_12m DESC
+      LIMIT 5;
+    risultato_atteso_sintesi: "1) Servizi Industria & C. S.r.l. (~607k) ... 5) Delta Lavorazioni S.r.l.s. (~326k)."
+
+  - id: G03
+    domanda: "Qual è il tasso di conversione dei preventivi anno per anno?"
+    intento: "SUM(accettato)/COUNT(*)*100 su ai_bi_preventivi raggruppato per anno."
+    viste: [ai_bi_preventivi]
+    viz: linea
+    verifica: resultset
+    tolleranza: 0.1
+    sql_riferimento: |
+      SELECT anno,
+             COUNT(*) AS preventivi,
+             SUM(accettato) AS accettati,
+             ROUND(100 * SUM(accettato) / COUNT(*), 1) AS tasso_pct
+      FROM ai_bi_preventivi
+      GROUP BY anno
+      ORDER BY anno;
+    risultato_atteso_sintesi: "2022-2024 intorno al 48-49%, calo al ~32% nel 2025-2026."
+
+  - id: G04
+    domanda: "Quanti preventivi ci sono per stato quest'anno?"
+    intento: "COUNT(*) per stato su ai_bi_preventivi, anno in corso (YEAR(CURDATE()))."
+    viste: [ai_bi_preventivi]
+    viz: torta
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT stato,
+             COUNT(*) AS n_preventivi
+      FROM ai_bi_preventivi
+      WHERE anno = YEAR(CURDATE())
+      GROUP BY stato
+      ORDER BY n_preventivi DESC;
+    risultato_atteso_sintesi: "5 stati: accettata, scaduta, rifiutata, inviata, bozza."
+
+  - id: G05
+    domanda: "Quanto abbiamo speso in ordini ai fornitori mese per mese negli ultimi 12 mesi?"
+    intento: "SUM(totale_imponibile) su ai_bi_ordini_fornitore esclusi gli annullati, finestra mobile 12 mesi."
+    viste: [ai_bi_ordini_fornitore]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT anno_mese,
+             ROUND(SUM(totale_imponibile), 2) AS spesa
+      FROM ai_bi_ordini_fornitore
+      WHERE annullato = 0
+        AND data_ordine >= CURDATE() - INTERVAL 12 MONTH
+      GROUP BY anno_mese
+      ORDER BY anno_mese;
+    risultato_atteso_sintesi: "~13 righe mensili, spesa nell'ordine di alcuni milioni di euro al mese."
+
+  - id: G06
+    domanda: "Elenca i 10 fornitori con più valore ordinato negli ultimi 12 mesi."
+    intento: "Top-10 fornitori per valore_ordinato_12m da ai_bi_fornitori."
+    viste: [ai_bi_fornitori]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT fornitore,
+             valore_ordinato_12m
+      FROM ai_bi_fornitori
+      ORDER BY valore_ordinato_12m DESC
+      LIMIT 10;
+    risultato_atteso_sintesi: "10 fornitori, valori decrescenti nell'ordine del milione di euro."
+
+  - id: G07
+    domanda: "Quali categorie di prodotto pesano di più sui preventivi accettati, per valore?"
+    intento: "SUM(totale_riga) su ai_bi_righe_preventivo con accettato = 1, raggruppato per categoria."
+    viste: [ai_bi_righe_preventivo]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT categoria,
+             ROUND(SUM(totale_riga), 2) AS valore
+      FROM ai_bi_righe_preventivo
+      WHERE accettato = 1
+      GROUP BY categoria
+      ORDER BY valore DESC;
+    risultato_atteso_sintesi: "~10 categorie (Consumabili, Pneumatica, Idraulica, Accessori...) su valori simili tra loro."
+
+  - id: G08
+    domanda: "Quali fornitori hanno la peggiore puntualità di consegna? Considera solo chi ha almeno 10 consegne."
+    intento: "Da ai_bi_fornitori, ordina per pct_consegne_in_ritardo filtrando consegne_totali >= 10."
+    viste: [ai_bi_fornitori]
+    viz: tabella
+    verifica: resultset
+    tolleranza: 0.1
+    sql_riferimento: |
+      SELECT fornitore,
+             consegne_totali,
+             consegne_in_ritardo,
+             pct_consegne_in_ritardo
+      FROM ai_bi_fornitori
+      WHERE consegne_totali >= 10
+      ORDER BY pct_consegne_in_ritardo DESC
+      LIMIT 10;
+    risultato_atteso_sintesi: "In testa fornitori con ~75-80% di consegne in ritardo."
+
+  - id: G09
+    domanda: "Quali articoli sono sotto scorta? Mostrami giacenza e giacenza minima."
+    intento: "ai_bi_prodotti con sotto_scorta = 1, elenco con giacenza e giacenza_minima."
+    viste: [ai_bi_prodotti]
+    viz: tabella
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT prodotto,
+             categoria,
+             giacenza,
+             giacenza_minima
+      FROM ai_bi_prodotti
+      WHERE sotto_scorta = 1
+      ORDER BY (giacenza_minima - giacenza) DESC;
+    risultato_atteso_sintesi: "~22 articoli sotto la scorta minima."
+
+  - id: G10
+    domanda: "Qual è il valore medio di un preventivo, anno per anno?"
+    intento: "AVG(totale_imponibile) su ai_bi_preventivi raggruppato per anno."
+    viste: [ai_bi_preventivi]
+    viz: linea
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT anno,
+             ROUND(AVG(totale_imponibile), 2) AS valore_medio
+      FROM ai_bi_preventivi
+      GROUP BY anno
+      ORDER BY anno;
+    risultato_atteso_sintesi: "5 righe (2022-2026), valore medio nell'ordine delle decine di migliaia di euro."
+
+  - id: G11
+    domanda: "Confronta il valore dei preventivi accettati per categoria tra il 2024 e il 2025."
+    intento: "SUM(totale_riga) su ai_bi_righe_preventivo con accettato = 1, pivot per categoria e anno (2024, 2025)."
+    viste: [ai_bi_righe_preventivo]
+    viz: barre_raggruppate
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT categoria,
+             ROUND(SUM(CASE WHEN anno = 2024 THEN totale_riga ELSE 0 END), 2) AS valore_2024,
+             ROUND(SUM(CASE WHEN anno = 2025 THEN totale_riga ELSE 0 END), 2) AS valore_2025
+      FROM ai_bi_righe_preventivo
+      WHERE accettato = 1 AND anno IN (2024, 2025)
+      GROUP BY categoria
+      ORDER BY valore_2025 DESC;
+    risultato_atteso_sintesi: "~10 categorie con le due colonne 2024 e 2025 a confronto."
+
+  - id: G12
+    domanda: "Quali ordini ai fornitori sono ancora da ricevere e per quale importo?"
+    intento: "ai_bi_ordini_fornitore con stato in ('inviato','confermato','parzialmente_ricevuto'), elenco per importo."
+    viste: [ai_bi_ordini_fornitore]
+    viz: tabella
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT numero_ordine,
+             fornitore,
+             data_ordine,
+             stato,
+             totale_imponibile
+      FROM ai_bi_ordini_fornitore
+      WHERE stato IN ('inviato', 'confermato', 'parzialmente_ricevuto')
+      ORDER BY totale_imponibile DESC
+      LIMIT 20;
+    risultato_atteso_sintesi: "Ordini aperti ordinati per importo decrescente (primi 20)."
+
+# ---------------------------------------------------------------------
+# Domande di controllo negativo: il modello NON deve inventare.
+# Attesa: tipo = non_disponibile | chiarimento, o query bloccata dal validatore.
+# ---------------------------------------------------------------------
+controlli_negativi:
+
+  - id: N01
+    domanda: "Qual è il fatturato di quest'anno?"
+    atteso: "Non esistono fatture in questo gestionale (solo preventivi e ordini d'acquisto): il modello deve rispondere non_disponibile, oppure chiedere se intende i preventivi accettati."
+
+  - id: N02
+    domanda: "Quanto abbiamo incassato dai clienti a settembre?"
+    atteso: "Nessun dato di incassi/pagamenti nelle viste: risposta non_disponibile."
+
+  - id: N03
+    domanda: "Mostrami lo scadenzario dei clienti e gli insoluti."
+    atteso: "Nessuna vista su scadenze/pagamenti: risposta non_disponibile."
+
+  - id: N04
+    domanda: "Com'è la situazione?"
+    atteso: "Domanda vaga su periodo/metrica: il modello chiede un chiarimento."

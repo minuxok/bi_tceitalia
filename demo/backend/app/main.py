@@ -56,13 +56,24 @@ def _client_ip(req: Request) -> str:
 
 @app.get("/health")
 def health() -> dict:
+    # Il DB reale (mysql) potrebbe non rispondere: /health resta comunque 200,
+    # così l'healthcheck Docker non fa flappare il container per un blip di rete.
+    try:
+        data_rif = get_data_riferimento()
+        viste = list(get_views_schema().keys())
+        db_ok = True
+    except Exception as e:  # noqa: BLE001
+        data_rif, viste, db_ok = "", [], False
+        _ = e
     return {
         "stato": "ok",
         "verticale": settings.vertical,
+        "motore": settings.db_engine,
+        "db_raggiungibile": db_ok,
         "llm_configurato": settings.llm_ready,
         "modello": settings.llm_model,
-        "data_riferimento": get_data_riferimento(),
-        "viste": list(get_views_schema().keys()),
+        "data_riferimento": data_rif,
+        "viste": viste,
     }
 
 

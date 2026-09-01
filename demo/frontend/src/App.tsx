@@ -277,7 +277,7 @@ function DemoSection() {
       <div className="lp-wrap lp-demo-inner">
         <h2 className="lp-h2">Provala adesso</h2>
         <p className="lp-lead">
-          Stesso motore, due mondi. Scegli il tipo di attività e fai una domanda ai suoi dati.
+          Stesso motore, più mondi. Scegli il tipo di attività e fai una domanda ai suoi dati.
         </p>
         <div className="lp-seg" role="tablist" aria-label="Tipo di attività">
           {VERTICALS.map((x) => (

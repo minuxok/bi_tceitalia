@@ -8,7 +8,7 @@
 //   VITE_API_BASE_GESTIONALE=/bi/api  VITE_API_BASE_ECOMMERCE=/bi/api-ecom
 
 export interface VerticalDef {
-  id: 'gestionale' | 'ecommerce'
+  id: 'gestionale' | 'ecommerce' | 'gest'
   label: string
   store: string
   apiBase: string
@@ -36,6 +36,14 @@ export const VERTICALS: VerticalDef[] = [
     apiBase: (env.VITE_API_BASE_ECOMMERCE as string | undefined) || '/api-ecom',
     lead:
       'Dati di un e-commerce di esempio, “Nuvola Shop” (abbigliamento e calzature). Nessun dato reale, niente viene memorizzato.',
+  },
+  {
+    id: 'gest',
+    label: 'Gestionale live',
+    store: 'Gestionale acquisti',
+    apiBase: (env.VITE_API_BASE_GEST as string | undefined) || '/api-gest',
+    lead:
+      'Collegamento in tempo reale a un gestionale esterno (acquisti e preventivi) tramite un utente di database in sola lettura. I dati sono fittizi.',
   },
 ]
 

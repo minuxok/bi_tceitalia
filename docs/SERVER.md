@@ -3,8 +3,8 @@
 > **VPS:** `193.70.38.117` · Ubuntu · ISPConfig (stesso VPS di tagnest, cultural-invaders, visitnove-api, industriale-3d, poloniato100)
 > **Dominio:** `https://bi.tceitalia.com`
 > **App:** `/opt/conversational-bi` — backend FastAPI (Python/uvicorn) in **container Docker** dal 31/08/2026 (prima era PM2 — vedi §"Procedura per Docker"), frontend build statica Vite
-> **Porte backend:** `3005` = verticale **gestionale** (`conversational-bi`, `VERTICAL=acme`) · `3006` = verticale **e-commerce** (`conversational-bi-ecom`, `VERTICAL=ecom`). Due container dalla stessa immagine. (3000=tagnest, 3001=cultural-invaders-next, 3002/3003=visitnove-api e un'altra app, 3004=industriale-3d — verifica con `pm2 status`/`docker ps` prima di assumere libera una porta)
-> **Database:** SQLite nel repo — `demo/db/acme.db` (gestionale) e `demo/db/nuvola.db` (e-commerce), entrambi copiati dentro l'immagine
+> **Porte backend:** `3005` = **gestionale** (`conversational-bi`, `VERTICAL=acme`) · `3006` = **e-commerce** (`conversational-bi-ecom`, `VERTICAL=ecom`) · `3007` = **gestionale acquisti** (`conversational-bi-gest`, `VERTICAL=gest`). Tre container dalla stessa immagine. (3000=tagnest, 3001=cultural-invaders-next, 3002/3003=visitnove-api e un'altra app, 3004=industriale-3d — verifica con `pm2 status`/`docker ps` prima di assumere libera una porta)
+> **Database:** `acme` ed `ecom` = SQLite nel repo (`demo/db/acme.db`, `demo/db/nuvola.db`, copiati nell'immagine). `gest` = **MySQL/MariaDB REALE esterno** (`c2gest` su `198.244.191.220`), utente in sola lettura; le viste `ai_bi_*` sono iniettate a runtime come CTE, non esistono nel DB del cliente. Credenziali nel `.env` sul server, mai su git.
 > **Accesso SSH:** Putty → `193.70.38.117` porta `22`, utente da definire (stesso utente delle altre app su questo VPS, es. `ubuntu`)
 > **Repo:** https://github.com/minuxok/bi_tceitalia — branch `dev` (attivo), `main` (baseline)
 
@@ -142,14 +142,16 @@ Nel sito `bi.tceitalia.com` → tab **Options** → Apache Directives:
 ProxyPreserveHost On
 ProxyPass /api-ecom/ http://localhost:3006/
 ProxyPassReverse /api-ecom/ http://localhost:3006/
+ProxyPass /api-gest/ http://localhost:3007/
+ProxyPassReverse /api-gest/ http://localhost:3007/
 ProxyPass /api/ http://localhost:3005/
 ProxyPassReverse /api/ http://localhost:3005/
 ```
 
 > ⚠️ Slash finale obbligatorio e coerente su entrambi i lati (`/api/` non `/api`): senza, Apache non strippa il prefisso e il backend riceve `/api/health` invece di `/health`, rispondendo 404 `{"detail":"Not Found"}` (visto in produzione il 30/08/2026).
-> ⚠️ Metti `/api-ecom/` **prima** di `/api/`: i due path sono disgiunti (`/api-ecom` non inizia per `/api/`) ma tenere il più specifico in cima è la regola sicura.
+> ⚠️ Metti `/api-ecom/` e `/api-gest/` **prima** di `/api/`: i path sono disgiunti ma tenere il più specifico in cima è la regola sicura.
 
-> Il frontend chiama `/api` (gestionale) e `/api-ecom` (e-commerce) — coerenti con questi due proxy. Non serve `VITE_API_BASE` in build se si usano questi path.
+> Il frontend chiama `/api` (gestionale), `/api-ecom` (e-commerce) e `/api-gest` (gestionale acquisti) — coerenti con questi tre proxy. Non serve `VITE_API_BASE` in build se si usano questi path.
 
 Poi tab **SSL** → abilita **Let's Encrypt** se non già fatto.
 
@@ -166,32 +168,101 @@ Gestionale sia E-commerce con l'interruttore nella sezione demo.
 
 ---
 
-## 2. Operazione più comune — Aggiornare il sito
+## 2. Aggiornare la demo — procedura standard
 
-> ⚠️ Il **backend** ora si aggiorna con Docker, non con `pm2 restart` — vedi §"Procedura per Docker".
-> Questa sezione resta valida per il **frontend**.
+Due parti **indipendenti**, si aggiornano separatamente:
 
-**1. Sul PC (terminale locale):**
+| Parte | Cosa contiene | Come si aggiorna |
+|---|---|---|
+| **Backend / "motore"** | FastAPI + motore Text-to-SQL + LLM, DB SQLite, layer semantico, golden questions | container **Docker**, via `~/deploy-cbi.sh` (§2.2) |
+| **Frontend** | landing + widget React (build statica Vite) | `git pull` + `npm run build` + `rsync` (§2.3) |
+
+Se hai toccato solo il backend fai solo §2.2; solo il frontend, solo §2.3; entrambi, prima §2.2 poi §2.3.
+
+### 2.1 Sul PC — porta le modifiche su `main`
+
+Il deploy sul server tira **sempre** da `origin/main`. Quindi qualunque modifica va prima su `main`:
+
 ```powershell
 git add -A
 git commit -m "descrizione modifiche"
 git push origin dev
+# quando dev è pronto per la produzione:
+git checkout main
+git merge dev
+git push origin main
+git checkout dev
 ```
-Quando `dev` è pronto per la produzione, merge su `main` e push anche quello.
 
-**2. Su Putty (server):**
+### 2.2 Backend / "motore" (Docker) — su Putty
+
+**Prerequisito una tantum** — `/opt/conversational-bi/demo/backend/.env` deve avere `DB_PATH` **vuoto** (il DB lo sceglie `VERTICAL`, non `.env`). `deploy-cbi.sh` si rifiuta di partire se trova `DB_PATH=../db/...`:
+
+```bash
+grep -n DB_PATH /opt/conversational-bi/demo/backend/.env      # deve stampare  DB_PATH=
+# se NON è vuoto, correggilo:
+sed -i 's#^[[:space:]]*DB_PATH[[:space:]]*=.*#DB_PATH=#' /opt/conversational-bi/demo/backend/.env
+```
+
+**Prerequisito per il verticale `gest`** (gestionale acquisti su MySQL reale) — nello stesso `.env` servono le credenziali del DB `c2gest` (utente in **sola lettura**). `deploy-cbi.sh` inietta `DB_ENGINE=mysql` solo sul container `gest`; queste righe restano nel `.env` comune, acme/ecom le ignorano:
+
+```ini
+DB_HOST=198.244.191.220
+DB_PORT=3306
+DB_NAME=c2gest
+DB_USER=c2gestread
+DB_PASSWORD=...            # la password reale, mai su git
+```
+
+Verifica raggiungibilità dal VPS prima del deploy: `nc -zv 198.244.191.220 3306`.
+
+**Deploy** (un solo comando, fa tutto):
+
+```bash
+~/deploy-cbi.sh
+```
+
+Lo script: `git fetch/checkout/reset --hard origin/main` → si ri-esegue nella versione fresca → `docker build` dell'immagine → **pausa** `aegis-agent` → `docker rm -f` + `docker run` dei **tre** container (`conversational-bi` acme :3005, `conversational-bi-ecom` ecom :3006, `conversational-bi-gest` gest :3007 con `-e DB_ENGINE=mysql`) → attende `healthy` → stampa `/health` di tutti → **riaccende** `aegis-agent` (anche in caso di errore, via `trap`). Se `sudo` chiede la password, digitala.
+
+**Verifica**:
+
+```bash
+docker ps                                    # tutti Up (healthy)
+curl -s http://127.0.0.1:3005/health         # -> "verticale":"acme"
+curl -s http://127.0.0.1:3006/health         # -> "verticale":"ecom"
+curl -s http://127.0.0.1:3007/health         # -> "verticale":"gest", "db_raggiungibile":true
+```
+
+> Docker riguarda **solo il backend**: `~/deploy-cbi.sh` NON aggiorna il frontend.
+
+### 2.3 Frontend (build statica Vite) — su Putty
+
 ```bash
 cd /opt/conversational-bi
-git pull origin main
-
-# Backend  → NON più così: usa ~/deploy-cbi.sh (§"Procedura per Docker")
-
-# Frontend
+git pull origin main            # no-op se hai appena lanciato ~/deploy-cbi.sh (fa già reset --hard)
 cd demo/frontend
-npm install   # solo se package.json è cambiato
+npm install                     # solo se package.json è cambiato
 npm run build
 sudo rsync -a --delete dist/ /var/www/clients/client0/web28/web/
 ```
+
+**Verifica**:
+
+```bash
+curl -I https://bi.tceitalia.com                 # 200
+curl https://bi.tceitalia.com/api/health         # -> "verticale":"acme"
+curl https://bi.tceitalia.com/api-ecom/health    # -> "verticale":"ecom"
+curl https://bi.tceitalia.com/api-gest/health    # -> "verticale":"gest"
+```
+
+> Se un `/api-*/health` dà **404 (pagina Apache)**: manca il reverse proxy in ISPConfig — vedi §1.7.
+> Se `/api-gest/health` dà **502/503** o `"db_raggiungibile":false`: il container c'è ma non raggiunge il MySQL `c2gest` — controlla le credenziali nel `.env` e `nc -zv 198.244.191.220 3306` dal VPS.
+
+### 2.4 Gotcha Putty
+
+- **Non incollare blocchi multi-riga con `sudo` dentro**: se `sudo` apre il prompt password, "mangia" le righe incollate dopo e alcuni comandi non partono, senza errori evidenti. Incolla **un comando alla volta**, oppure usa `~/deploy-cbi.sh` (gestisce lui il prompt).
+- **Non modificare il codice sulla VPS**: `deploy-cbi.sh` fa `git reset --hard origin/main` e sovrascrive tutto. Sempre: locale → push su `main` → deploy.
+- L'unico file che vive **solo** sul server è `demo/backend/.env` (non è in git, passato ai container con `--env-file`).
 
 ---
 
@@ -229,17 +300,22 @@ Il servizio gestionale è registrato in AEGIS (tabella `services` del DB `aegis`
 - Se vede il container in stato `≠ running`, il Core apre un incidente `critical` e
   invia all'Agent un comando firmato `restart_container` → `docker restart conversational-bi`.
 
-**Container e-commerce (`conversational-bi-ecom`)** — per farlo sorvegliare anche lui,
-aggiungi una riga in `services` (una tantum):
+**Container `conversational-bi-ecom` e `conversational-bi-gest`** — per farli
+sorvegliare anche loro, aggiungi le righe in `services` (una tantum):
 
 ```bash
 sudo -u postgres psql -d aegis -c \
-  "INSERT INTO services (name, container_name) VALUES ('conversational-bi-ecom','conversational-bi-ecom');"
+  "INSERT INTO services (name, container_name) VALUES
+     ('conversational-bi-ecom','conversational-bi-ecom'),
+     ('conversational-bi-gest','conversational-bi-gest');"
 ```
 
-Se **non** lo registri, AEGIS semplicemente non lo auto-riavvia (nessun errore):
+Se **non** li registri, AEGIS semplicemente non li auto-riavvia (nessun errore):
 resta comunque `--restart unless-stopped` a livello Docker. `deploy-cbi.sh` mette
-in pausa l'Agent per lo swap di entrambi a prescindere.
+in pausa l'Agent per lo swap di tutti a prescindere.
+Nota: `conversational-bi-gest` dipende da un MySQL **esterno**; se quel DB è giù il
+container resta `healthy` (l'`/health` risponde 200 con `"db_raggiungibile":false`),
+quindi AEGIS non lo riavvia a vuoto.
 - **Circuit breaker**: 3 remediation automatiche in 60 min → il servizio va in
   `quarantined` per un'ora (stop auto-restart, solo alert).
 
@@ -280,25 +356,20 @@ ln -sf /opt/conversational-bi/demo/deploy-cbi.sh ~/deploy-cbi.sh
 
 ### Aggiornare il backend (ogni volta che hai novità)
 
-```bash
-# 1. sul PC (dopo aver portato le modifiche su main)
-git push origin main
+Procedura completa in **§2.2** (con prerequisito `DB_PATH=` vuoto e verifiche). In breve:
 
-# 2. su Putty
+```bash
+# 1. sul PC: modifiche su main (§2.1)
+# 2. su Putty:
 ~/deploy-cbi.sh
 ```
 
 Lo script fa da solo: `git fetch/checkout/reset` su `origin/main` → si ri-esegue nella
 versione aggiornata → `docker build` → pausa `aegis-agent` → `docker rm -f` + `docker run`
-→ attende `healthy` → stampa `/health` e `/domande` → riaccende `aegis-agent`.
+di **entrambi** i container → attende `healthy` → stampa `/health` di acme ed ecom → riaccende `aegis-agent`.
 
-Il **frontend** si aggiorna a parte come nella §2 (`git pull` + `npm run build` + `rsync`):
+Il **frontend** si aggiorna a parte (§2.3): `git pull` + `npm run build` + `rsync`.
 Docker riguarda **solo il backend**.
-
-> ⚠️ **Non incollare blocchi multi-riga con `sudo` dentro** direttamente in Putty: se
-> `sudo` apre il prompt della password, "mangia" le righe incollate dopo e alcuni
-> comandi (es. `git pull`) non partono, senza errori evidenti. Usa `deploy-cbi.sh`,
-> oppure incolla **un comando alla volta**.
 
 ### Comandi Docker essenziali
 

@@ -18,20 +18,35 @@ def _int(name: str, default: int) -> int:
 
 
 # --- Verticali demo -------------------------------------------------------
-# Un "verticale" = un bundle di risorse (DB + viste ai_bi_* + glossario +
-# domande d'oro). Il motore non cambia: si scambiano solo questi 4 file.
+# Un "verticale" = un bundle di risorse (motore DB + viste ai_bi_* + glossario
+# + domande d'oro). Il motore Text-to-SQL non cambia: si scambiano questi file.
+#
+# "engine" = quale database interroga il verticale:
+#   sqlite -> file .db copiato nell'immagine (demo con dati congelati)
+#   mysql  -> connessione a un MySQL/MariaDB REALE, sola lettura. Le viste
+#             ai_bi_* NON esistono nel DB del cliente: il backend le inietta
+#             come CTE (WITH ...) davanti a ogni query (vedi virtual_views.py).
 _VERTICALS: dict[str, dict[str, str]] = {
     "acme": {  # gestionale / distribuzione arredo
+        "engine": "sqlite",
         "db": "../db/acme.db",
         "views": "views.sql",
         "glossario": "glossario.yaml",
         "golden": "golden_questions.yaml",
     },
     "ecom": {  # e-commerce "Nuvola Shop" (abbigliamento/calzature)
+        "engine": "sqlite",
         "db": "../db/nuvola.db",
         "views": "views_ecom.sql",
         "glossario": "glossario_ecom.yaml",
         "golden": "golden_questions_ecom.yaml",
+    },
+    "gest": {  # gestionale acquisti + preventivi su MariaDB REALE (c2gest)
+        "engine": "mysql",
+        "db": "",
+        "views": "views_gest.sql",
+        "glossario": "glossario_gest.yaml",
+        "golden": "golden_questions_gest.yaml",
     },
 }
 
@@ -44,8 +59,18 @@ _BUNDLE = _VERTICALS[_VERTICAL]
 
 
 class Settings:
-    # verticale attivo (acme | ecom), fissato all'avvio da VERTICAL
+    # verticale attivo (acme | ecom | gest), fissato all'avvio da VERTICAL
     vertical: str = _VERTICAL
+
+    # motore del DB del verticale: "sqlite" | "mysql". DB_ENGINE forza il valore.
+    db_engine: str = (os.getenv("DB_ENGINE", "").strip().lower() or _BUNDLE.get("engine", "sqlite"))
+
+    # --- connessione MySQL/MariaDB (solo se db_engine == "mysql") ---
+    mysql_host: str = os.getenv("DB_HOST", "").strip()
+    mysql_port: int = _int("DB_PORT", 3306)
+    mysql_name: str = os.getenv("DB_NAME", "").strip()
+    mysql_user: str = os.getenv("DB_USER", "").strip()
+    mysql_password: str = os.getenv("DB_PASSWORD", "")
 
     # --- LLM ---
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
@@ -85,6 +110,15 @@ class Settings:
     def db_path(self) -> Path:
         p = Path(self._db_path_raw)
         return p if p.is_absolute() else (BASE_DIR / p).resolve()
+
+    @property
+    def sql_dialect(self) -> str:
+        """Dialetto sqlglot per validazione/serializzazione della query."""
+        return "mysql" if self.db_engine == "mysql" else "sqlite"
+
+    @property
+    def mysql_ready(self) -> bool:
+        return bool(self.mysql_host and self.mysql_name and self.mysql_user)
 
     @property
     def llm_ready(self) -> bool:

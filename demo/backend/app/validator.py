@@ -22,8 +22,12 @@ class QueryRifiutata(ValueError):
 
 
 FUNZIONI_VIETATE = {
+    # sqlite
     "load_extension", "readfile", "writefile", "fileio", "edit",
     "fts3_tokenizer", "zipfile", "sqlite_compileoption_used",
+    # mysql / mariadb
+    "load_file", "benchmark", "sleep", "get_lock", "release_lock",
+    "master_pos_wait", "sys_eval", "sys_exec", "lines_terminated_by",
 }
 
 STATEMENT_VIETATI = (
@@ -46,7 +50,7 @@ def valida_e_normalizza(sql: str) -> str:
         raise QueryRifiutata("Query vuota.")
 
     try:
-        statements = sqlglot.parse(sql, read="sqlite")
+        statements = sqlglot.parse(sql, read=settings.sql_dialect)
     except Exception as e:  # noqa: BLE001
         raise QueryRifiutata(f"SQL non interpretabile: {e}") from e
 
@@ -82,6 +86,9 @@ def valida_e_normalizza(sql: str) -> str:
     # doppio controllo testuale su parole chiave pericolose (paranoia)
     if re.search(r"\b(attach|detach|vacuum|reindex)\b", sql, re.IGNORECASE):
         raise QueryRifiutata("Parola chiave non ammessa nella query.")
+    # mysql/mariadb: esfiltrazione su file e lock di sessione
+    if re.search(r"\b(into\s+(out|dump)file|load\s+data|load_file)\b", sql, re.IGNORECASE):
+        raise QueryRifiutata("Parola chiave non ammessa nella query.")
 
     return _forza_limit(tree)
 
@@ -100,8 +107,8 @@ def _forza_limit(tree: exp.Expression) -> str:
                 val = None
         if val is None or val > limite:
             target.set("limit", exp.Limit(expression=exp.Literal.number(limite)))
-        return tree.sql(dialect="sqlite")
+        return tree.sql(dialect=settings.sql_dialect)
 
     # UNION/INTERSECT/EXCEPT: avvolgo in una SELECT esterna con LIMIT
     wrapped = exp.select("*").from_(tree.subquery(alias="q")).limit(limite)
-    return wrapped.sql(dialect="sqlite")
+    return wrapped.sql(dialect=settings.sql_dialect)

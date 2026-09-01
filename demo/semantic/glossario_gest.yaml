@@ -1,0 +1,109 @@
+# =====================================================================
+# GLOSSARIO SEMANTICO - verticale "gest" (gestionale acquisti + preventivi)
+#
+# Iniettato nel system prompt del motore Text-to-SQL. Ogni voce traduce un
+# termine di business in una definizione operativa sulle viste ai_bi_*.
+#
+# Sorgente: database REALE c2gest (MariaDB), sola lettura. "Oggi" = CURDATE().
+# =====================================================================
+
+termini:
+
+  preventivo / offerta: >
+    Riga di ai_bi_preventivi (testata) o ai_bi_righe_preventivo (dettaglio).
+    Documento emesso verso un cliente. numero con formato OFF-ANNO-NNNN.
+
+  preventivo accettato / offerta accettata: >
+    ai_bi_preventivi con stato = 'accettata' (oppure accettato = 1).
+    E' l'UNICO segnale di vendita in questo gestionale: non esistono
+    fatture ne ordini di vendita.
+
+  venduto / vendite / commesse acquisite: >
+    Sinonimi operativi di "preventivi accettati": usa accettato = 1 su
+    ai_bi_preventivi (valore = SUM(totale_imponibile)) o ai_bi_righe_preventivo
+    (per prodotto/categoria, valore = SUM(totale_riga)).
+
+  valore di un preventivo: >
+    totale_imponibile (IVA esclusa). totale_generale include l'IVA.
+
+  tasso di conversione / tasso di accettazione: >
+    SUM(accettato) / COUNT(*) * 100 su ai_bi_preventivi, nel periodo richiesto.
+    A livello cliente c'e' gia' tasso_accettazione_pct in ai_bi_clienti.
+
+  valore medio preventivo: >
+    AVG(totale_imponibile) su ai_bi_preventivi nel periodo richiesto.
+
+  ordine / ordine d'acquisto / ordine a fornitore: >
+    Riga di ai_bi_ordini_fornitore (testata) o ai_bi_righe_ordine_fornitore
+    (dettaglio). Documento emesso verso un fornitore. numero ORD-ANNO-NNNN.
+
+  spesa acquisti / acquistato / speso con i fornitori: >
+    SUM(totale_imponibile) su ai_bi_ordini_fornitore, oppure SUM(totale_riga)
+    su ai_bi_righe_ordine_fornitore per il dettaglio per prodotto/categoria/fornitore.
+    Di norma si escludono gli ordini annullati (annullato = 1 / stato = 'annullato').
+
+  ordine evaso / ricevuto: >
+    ai_bi_ordini_fornitore con stato = 'ricevuto' (ricevuto = 1). "Parzialmente
+    ricevuto" e' stato = 'parzialmente_ricevuto'. Da ricevere = stato in
+    ('inviato','confermato','parzialmente_ricevuto').
+
+  consegna in ritardo: >
+    ordine 'ricevuto' con data_consegna_effettiva successiva a
+    data_consegna_prevista. giorni_ritardo_consegna = differenza in giorni
+    (positivo = in ritardo). A livello fornitore: pct_consegne_in_ritardo in
+    ai_bi_fornitori.
+
+  quantita mancante / da ricevere: >
+    quantita_mancante in ai_bi_righe_ordine_fornitore
+    (quantita_ordinata - quantita_ricevuta, minimo 0).
+
+  margine / margine prodotto: >
+    margine_unitario = prezzo_vendita - prezzo_acquisto e margine_pct in
+    ai_bi_prodotti. E' un margine di LISTINO (teorico), non a consuntivo:
+    non esiste un margine per singola riga venduta.
+
+  giacenza / scorta: >
+    giacenza in ai_bi_prodotti (quantita a magazzino, valore corrente).
+
+  sotto scorta / sottoscorta: >
+    ai_bi_prodotti con sotto_scorta = 1 (giacenza < giacenza_minima).
+
+  prodotto fermo / mai movimentato: >
+    ai_bi_prodotti con quantita_offerta_12m = 0 e quantita_ordinata_12m = 0.
+
+  cliente attivo: >
+    In ai_bi_clienti: attivo = 1 e' il flag anagrafico; attivo_recente = 1
+    indica almeno un preventivo negli ultimi 6 mesi.
+
+  fornitore attivo: >
+    ai_bi_fornitori con attivo = 1 (flag anagrafico).
+
+  data di riferimento / a oggi: >
+    "oggi" = CURDATE(). ai_bi_meta.data_riferimento riporta l'ultima data
+    presente nei dati.
+
+note_per_il_modello:
+  - >
+    NON esistono fatture, incassi, pagamenti, scadenzario, prima nota o
+    contabilita'. Se l'utente chiede "fatturato", "incassato", "fatture",
+    "insoluti", "scaduto dei clienti", "cash flow" rispondi con
+    tipo = "non_disponibile" spiegando che il gestionale copre solo
+    preventivi e ordini d'acquisto.
+  - >
+    Il segnale di vendita e' il preventivo accettato: per "quanto abbiamo
+    venduto/incassato dai clienti" usa ai_bi_preventivi / ai_bi_righe_preventivo
+    con accettato = 1. Non confondere con gli ordini a fornitore (acquisti).
+  - >
+    Se l'utente dice solo "ordini" senza contesto, e non e' chiaro se intende
+    ordini a fornitore (acquisti) o preventivi ai clienti, rispondi con
+    tipo = "chiarimento".
+  - >
+    Importi con IVA esclusa: totale_imponibile (testate) e totale_riga
+    (righe). Per l'IVA inclusa usa totale_generale.
+  - >
+    Sintassi MariaDB/MySQL: CURDATE(), INTERVAL N MONTH/YEAR/DAY,
+    DATE_FORMAT(col, '%Y-%m'), YEAR(col). Niente strftime()/date() stile SQLite.
+  - >
+    anno, mese, anno_mese sono gia' pronti nelle viste dei documenti
+    (ai_bi_preventivi, ai_bi_righe_preventivo, ai_bi_ordini_fornitore,
+    ai_bi_righe_ordine_fornitore): usali per i raggruppamenti temporali.
