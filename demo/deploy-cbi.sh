@@ -20,7 +20,7 @@
 #   2. builda la nuova immagine (i container vecchi restano su: nessun downtime)
 #   3. mette in PAUSA l'Agent AEGIS per lo swap dei container
 #   4. sostituisce OGNI container (rm -f + run, finestra ~1s ciascuno)
-#   5. aspetta l'healthcheck e stampa /health di entrambi
+#   5. aspetta l'healthcheck e stampa /healthz di ogni istanza
 #   6. riaccende l'Agent AEGIS (anche se qualcosa fallisce, via trap)
 #
 # Il FRONTEND non e' gestito qui: vedi docs/SERVER.md sezione 2
@@ -116,7 +116,7 @@ for row in "${INSTANCES[@]}"; do
   done
   docker ps --filter "name=$NAME" --format '{{.Names}}  {{.Status}}'
   echo "--- health $NAME (VERTICAL=$VERT) ---"
-  curl -s "http://127.0.0.1:$HOST_PORT/health"; echo
+  curl -s "http://127.0.0.1:$HOST_PORT/healthz"; echo
 done
 
 # --- 6. l'Agent riparte dal trap EXIT

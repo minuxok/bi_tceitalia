@@ -283,7 +283,7 @@ curl https://bi.tceitalia.com/api-gest/health    # -> "verticale":"gest"
 
 | File | Ruolo |
 |---|---|
-| `demo/Dockerfile` | Ricetta immagine: `python:3.12-slim` → `pip install -r backend/requirements.txt` → copia `backend/` + `db/` + `semantic/` + `eval/` → avvia `uvicorn app.main:app` su `:3005`. Con `HEALTHCHECK` su `/health`. |
+| `demo/Dockerfile` | Ricetta immagine: `python:3.12-slim` → `pip install -r backend/requirements.txt` → copia `backend/` + `db/` + `semantic/` + `eval/` → avvia `uvicorn app.main:app` su `:3005`. Con `HEALTHCHECK` su `/healthz`. |
 | `demo/.dockerignore` | Esclude dall'immagine `.venv`, `logs/`, `__pycache__`, e soprattutto il **`.env`** — il segreto NON entra nell'immagine |
 | `demo/deploy-cbi.sh` | **Script di deploy versionato**: allinea main → build immagine → pausa Agent AEGIS → swap container → healthcheck → riaccende l'Agent. Sul server `~/deploy-cbi.sh` è un symlink a questo file. |
 
@@ -299,6 +299,12 @@ Il servizio gestionale è registrato in AEGIS (tabella `services` del DB `aegis`
 - L'**Agent** (`systemd: aegis-agent`) manda lo stato dei container al Core ogni **15s**.
 - Se vede il container in stato `≠ running`, il Core apre un incidente `critical` e
   invia all'Agent un comando firmato `restart_container` → `docker restart conversational-bi`.
+- In più il Core fa un check **HTTP** sull'`url` registrato in `services`: puntalo su
+  **`/healthz`** (schema AEGIS §2 — `service`/`version`/`status`/`timestamp`/`checks`
+  con `database` e `llm_provider`). `/healthz` torna **503** solo quando `status` =
+  `unhealthy` (DB SQLite dell'immagine non apribile); con MySQL esterno giù resta
+  **200** `degraded`, così il container non flappa (vedi nota gest sotto).
+  L'endpoint `/health` legacy resta invariato per il widget frontend.
 
 **Container `conversational-bi-ecom` e `conversational-bi-gest`** — per farli
 sorvegliare anche loro, aggiungi le righe in `services` (una tantum):
@@ -313,9 +319,10 @@ sudo -u postgres psql -d aegis -c \
 Se **non** li registri, AEGIS semplicemente non li auto-riavvia (nessun errore):
 resta comunque `--restart unless-stopped` a livello Docker. `deploy-cbi.sh` mette
 in pausa l'Agent per lo swap di tutti a prescindere.
-Nota: `conversational-bi-gest` dipende da un MySQL **esterno**; se quel DB è giù il
-container resta `healthy` (l'`/health` risponde 200 con `"db_raggiungibile":false`),
-quindi AEGIS non lo riavvia a vuoto.
+Nota: `conversational-bi-gest` dipende da un MySQL **esterno**; se quel DB è giù
+`/healthz` risponde **200** con `status:"degraded"` e `checks.database.status:"error"`,
+quindi il container resta `healthy` e AEGIS non lo riavvia a vuoto (un restart non
+rimetterebbe in piedi un MySQL esterno) — l'incidente arriva comunque via alert.
 - **Circuit breaker**: 3 remediation automatiche in 60 min → il servizio va in
   `quarantined` per un'ora (stop auto-restart, solo alert).
 

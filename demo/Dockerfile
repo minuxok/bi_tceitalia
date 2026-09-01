@@ -22,8 +22,10 @@ WORKDIR /app/backend
 
 EXPOSE 3005
 
-# Docker marca il container "unhealthy" se /health non risponde 200
+# Docker marca il container "unhealthy" se /healthz non risponde 200.
+# /healthz (schema AEGIS §2) torna 503 quando lo stato è "unhealthy" (DB del
+# verticale irraggiungibile); --retries=3 assorbe i blip, un guasto vero no.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3005/health').status==200 else 1)"
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3005/healthz').status==200 else 1)"
 
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3005"]

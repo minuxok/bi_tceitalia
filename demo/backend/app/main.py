@@ -3,7 +3,8 @@
 Il verticale attivo (dataset + layer semantico) è scelto da VERTICAL (acme | ecom).
 
 Endpoint:
-  GET  /health    stato del servizio
+  GET  /healthz   stato del servizio nello schema AEGIS §2 (per il monitoraggio)
+  GET  /health    stato del servizio, forma legacy consumata dal widget frontend
   GET  /domande   elenco delle domande d'oro (prompt precompilati per il widget)
   POST /chiedi    { "domanda": "..." } -> risposta strutturata
 """
@@ -18,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from .chart import normalizza_viz, sintesi_risultato
 from .config import settings
+from .health import build_healthz
 from .llm import LLMError, genera_interpretazione
 from .logging_store import (
     budget_llm_disponibile,
@@ -54,10 +56,19 @@ def _client_ip(req: Request) -> str:
     return req.client.host if req.client else "sconosciuto"
 
 
+@app.get("/healthz")
+def healthz() -> JSONResponse:
+    """Contratto standard AEGIS (§2): service/version/status/timestamp/checks.
+    `status` è nel corpo; lo rispecchiamo sul codice HTTP (unhealthy -> 503)."""
+    body, code = build_healthz()
+    return JSONResponse(status_code=code, content=body)
+
+
 @app.get("/health")
 def health() -> dict:
-    # Il DB reale (mysql) potrebbe non rispondere: /health resta comunque 200,
-    # così l'healthcheck Docker non fa flappare il container per un blip di rete.
+    # Forma legacy consumata dal widget frontend (campo `llm_configurato`).
+    # Il monitoraggio (Docker HEALTHCHECK, AEGIS) usa /healthz. Resta 200 anche
+    # con il DB giù: è /healthz a esprimere lo stato reale.
     try:
         data_rif = get_data_riferimento()
         viste = list(get_views_schema().keys())
