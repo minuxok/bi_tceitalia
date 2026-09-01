@@ -307,13 +307,14 @@ Il servizio gestionale è registrato in AEGIS (tabella `services` del DB `aegis`
   L'endpoint `/health` legacy resta invariato per il widget frontend.
 
 **Container `conversational-bi-ecom` e `conversational-bi-gest`** — per farli
-sorvegliare anche loro, aggiungi le righe in `services` (una tantum):
+sorvegliare anche loro (container-state **e** check HTTP su `/healthz`),
+aggiungi le righe in `services` (una tantum):
 
 ```bash
 sudo -u postgres psql -d aegis -c \
-  "INSERT INTO services (name, container_name) VALUES
-     ('conversational-bi-ecom','conversational-bi-ecom'),
-     ('conversational-bi-gest','conversational-bi-gest');"
+  "INSERT INTO services (name, url, container_name) VALUES
+     ('conversational-bi-ecom','http://127.0.0.1:3006/healthz','conversational-bi-ecom'),
+     ('conversational-bi-gest','http://127.0.0.1:3007/healthz','conversational-bi-gest');"
 ```
 
 Se **non** li registri, AEGIS semplicemente non li auto-riavvia (nessun errore):
