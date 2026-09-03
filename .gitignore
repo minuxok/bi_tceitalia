@@ -4,3 +4,6 @@ demo/backend/__pycache__/
 demo/backend/logs/
 demo/frontend/node_modules/
 demo/frontend/dist/
+
+# Trascrizioni chat salvate localmente (uso personale, non vanno nel repo)
+20??-??-??-??????-*.md
