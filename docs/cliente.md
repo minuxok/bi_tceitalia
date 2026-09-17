@@ -1,12 +1,12 @@
-# L'Assistente AI per il Tuo Gestionale Aziendale
+# L'Assistente AI per il Tuo Gestionale e il Tuo E-commerce
 
-> **Trasforma i dati del tuo ERP o CRM in un collega virtuale che risponde alle tue domande in italiano semplice. In sola lettura, in totale sicurezza, senza cambiare il software che già usi.**
+> **Trasforma i dati del tuo ERP, CRM o negozio online in un collega virtuale che risponde alle tue domande in italiano semplice. In sola lettura, in totale sicurezza, senza cambiare il software che già usi.**
 
 ---
 
 ## 🎯 Cos'è e Cosa Fa il Prodotto
 
-Il nostro **Assistente di Conversational BI** è un software di intelligenza artificiale che si collega al tuo gestionale aziendale (ERP, CRM o gestionale custom con database accessibile — SQL Server, PostgreSQL, MySQL… — oppure con API/export documentati) e ti permette di interrogare i tuoi dati semplicemente **scrivendo una domanda in italiano**.
+Il nostro **Assistente di Conversational BI** è un software di intelligenza artificiale che si collega al tuo gestionale aziendale (ERP, CRM o gestionale custom) **oppure alla tua piattaforma e-commerce** (WooCommerce, Shopify, Magento, PrestaShop…) — tramite database accessibile (SQL Server, PostgreSQL, MySQL/MariaDB…) o API/export documentati — e ti permette di interrogare i tuoi dati semplicemente **scrivendo una domanda in italiano**.
 
 Elimina passaggi intermedi, formule Excel complesse e attese dall'ufficio IT: ottieni risposte in pochi secondi, **verificabili riga per riga** e visive, basate sui dati del tuo sistema.
 
@@ -40,7 +40,7 @@ Chiedi quello che ti serve quando ti serve — durante una riunione o una tratta
 
 ## ⚙️ Come Funziona (in breve, per l'IT)
 
-1. **Connettore in sola lettura**: si collega al database o alle API del gestionale con un'utenza dedicata a permessi minimi (solo `SELECT`).
+1. **Connettore in sola lettura**: si collega al database o alle API del gestionale — o della piattaforma e-commerce — con un'utenza dedicata a permessi minimi (solo `SELECT`).
 2. **Layer semantico**: un dizionario che descrive tabelle, viste e metriche aziendali nel linguaggio del tuo settore. L'AI lavora su questo layer, non "a caso" sullo schema grezzo.
 3. **Generazione della query**: il modello linguistico traduce la domanda in italiano in una query SQL.
 4. **Motore di sicurezza**: ogni query generata viene validata *prima* dell'esecuzione — solo sintassi `SELECT`, blocco di qualsiasi comando di modifica, timeout, limite massimo di righe e accesso consentito solo alle viste concordate.
@@ -50,6 +50,8 @@ Chiedi quello che ti serve quando ti serve — durante una riunione o una tratta
 
 - **Accesso diretto (dati in tempo reale)**: quando il database del gestionale è raggiungibile in sola lettura. L'assistente lavora sempre sul dato aggiornato all'istante.
 - **Sincronizzazione periodica**: quando il gestionale espone solo API o export, i dati vengono copiati a intervalli regolari in un ambiente isolato dedicato a te. In questo caso i dati non sono in tempo reale e la frequenza di aggiornamento (es. ogni ora) viene dichiarata esplicitamente.
+
+**E-commerce**: per i negozi online l'assistente si collega al database del sito (tipico delle installazioni self-hosted come WooCommerce, Magento o PrestaShop) oppure alle API ufficiali (tipico di Shopify, con sincronizzazione periodica). Il layer semantico include già le metriche standard dell'e-commerce — conversion rate, scontrino medio (AOV), tasso di reso, tasso di riacquisto, valore del cliente (LTV), carrello abbandonato, canali di acquisizione e traffico — così l'AI le calcola sempre con le stesse regole.
 
 ---
 
@@ -99,6 +101,15 @@ Alcuni esempi pratici divisi per reparto.
 - *"Quali articoli a magazzino sono attualmente sotto la scorta minima di sicurezza?"*
 - *"Quanti ordini d'acquisto sono in attesa di consegna dai fornitori questo mese?"*
 
+### 🛒 E-commerce e Vendite Online
+
+- *"Mostrami il fatturato mese per mese di quest'anno confrontato con l'anno scorso."*
+- *"Qual è il conversion rate per canale di acquisizione negli ultimi 12 mesi?"*
+- *"Quali sono i 10 prodotti più venduti e quali non vendo più da oltre un anno?"*
+- *"Qual è lo scontrino medio (AOV) per dispositivo: desktop, mobile, tablet?"*
+- *"Qual è il tasso di reso per categoria di prodotto e i motivi principali dei resi?"*
+- *"Quanto fatturato arriva da clienti nuovi e quanto da clienti di ritorno?"*
+
 ---
 
 ## 🗺️ Canali di Accesso e Sviluppi
@@ -119,7 +130,7 @@ Alcuni esempi pratici divisi per reparto.
 Per far toccare con mano il valore del servizio senza impegnare l'azienda in contratti a lungo termine:
 
 - 📌 **Obiettivo**: automatizziamo **3 report aziendali ricorrenti** scelti da voi.
-- ⏱️ **Durata**: 3–4 settimane di prova sul vostro gestionale.
+- ⏱️ **Durata**: 3–4 settimane di prova sul vostro gestionale o e-commerce.
 - 👥 **Utenti**: fino a 3 utenti del vostro team.
 - 💶 **Investimento**: prezzo fisso contenuto, interamente scomputabile dal costo di attivazione finale in caso di conferma.
 
@@ -127,7 +138,7 @@ Per far toccare con mano il valore del servizio senza impegnare l'azienda in con
 
 ## 📋 I Passi per l'Attivazione
 
-1. **Discovery & Demo (30 min)**: verifichiamo il gestionale in uso, il tipo di accesso ai dati e definiamo le risposte prioritarie da ottenere.
+1. **Discovery & Demo (30 min)**: verifichiamo il gestionale o l'e-commerce in uso, il tipo di accesso ai dati e definiamo le risposte prioritarie da ottenere.
 2. **Setup & Glossario Semantico (1–2 settimane)**: installiamo il connettore sicuro, prepariamo le viste dati e insegniamo all'AI il "gergo" specifico del tuo settore (es. cosa si intende per *fatturato netto*, *cliente attivo*, *margine*). In questa fase misuriamo l'accuratezza su un set di domande concordate, con una soglia minima prima del go-live.
 3. **Test con il tuo team (1 settimana)**: 3–5 utenti reali usano l'assistente sul lavoro quotidiano e raccogliamo i feedback per l'ultima messa a punto.
 4. **Go-Live e Formazione (1 ora)**: breve sessione formativa per il team, cheat sheet delle domande e operatività a regime.
