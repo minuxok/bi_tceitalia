@@ -472,6 +472,11 @@
   text-align: center;
 }
 
+/* la demo può uscire dal contenitore standard per far respirare chat + dati */
+.lp-demo-wide {
+  max-width: 1400px;
+}
+
 .lp-demo-inner .lp-lead {
   margin-inline: auto;
 }

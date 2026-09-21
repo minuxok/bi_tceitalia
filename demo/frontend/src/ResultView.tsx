@@ -66,7 +66,14 @@ function Visualizzazione({ ris }: { ris: RispostaRisultato }) {
   )
 }
 
-export default function ResultView({ risposta }: { risposta: Risposta }) {
+export default function ResultView({
+  risposta,
+  onMostraDati,
+}: {
+  risposta: Risposta
+  /** se presente, mostra il pulsante che porta al pannello "Dati della demo" */
+  onMostraDati?: (viste: string[]) => void
+}) {
   if (risposta.tipo === 'errore') {
     return <p className="cbi-info cbi-error">{risposta.errore}</p>
   }
@@ -99,6 +106,17 @@ export default function ResultView({ risposta }: { risposta: Risposta }) {
         <pre className="cbi-sql">{ris.sql}</pre>
         {ris.spiegazione && <p className="cbi-expl">{ris.spiegazione}</p>}
       </details>
+
+      {onMostraDati && ris.viste_usate && ris.viste_usate.length > 0 && (
+        <button
+          type="button"
+          className="cbi-usati"
+          onClick={() => onMostraDati(ris.viste_usate ?? [])}
+        >
+          Mostra i dati usati
+          <span>{ris.viste_usate.join(', ')}</span>
+        </button>
+      )}
 
       <p className="cbi-note">
         Risposta in {(ris.durata_ms / 1000).toFixed(1)}s · solo lettura · viste{' '}

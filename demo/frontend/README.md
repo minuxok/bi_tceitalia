@@ -18,6 +18,15 @@ per verticale (stesso codice, `VERTICAL` diverso — vedi `demo/backend/README.m
 
 La mappa dei verticali (label, store, `apiBase`) è in `src/verticals.ts`.
 
+## Layout largo e pannello "Dati della demo"
+
+Con la prop `pannelloDati` (attiva nella sezione "Provala adesso") il widget passa a un
+layout fluido (`max-width: clamp(720px, 94vw, 1280px)`): da 1024px in su chat a sinistra e
+pannello dati a destra, sotto i 1024px una sola colonna con i dati sotto la chat. Il pannello
+(`src/DatiDemo.tsx`) legge `/demo/schema` e `/demo/sample/{vista}` dal backend: descrizione,
+colonne, conteggi e prime 5 righe di ogni vista `ai_bi_*`. Sotto ogni risposta il pulsante
+"Mostra i dati usati" evidenzia e apre le viste citate nella query (`viste_usate`).
+
 ## Sviluppo
 
 ```bash

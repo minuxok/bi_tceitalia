@@ -6,19 +6,22 @@ Endpoint:
   GET  /healthz   stato del servizio nello schema AEGIS §2 (per il monitoraggio)
   GET  /health    stato del servizio, forma legacy consumata dal widget frontend
   GET  /domande   elenco delle domande d'oro (prompt precompilati per il widget)
+  GET  /demo/schema          catalogo viste ai_bi_* (descrizione, colonne, n. righe, periodo)
+  GET  /demo/sample/{vista}  prime righe di una vista del catalogo (sola lettura)
   POST /chiedi    { "domanda": "..." } -> risposta strutturata
 """
 from __future__ import annotations
 
 import time
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .chart import normalizza_viz, sintesi_risultato
 from .config import settings
+from .demo_data import campione, catalogo, viste_usate
 from .health import build_healthz
 from .llm import LLMError, genera_interpretazione
 from .logging_store import (
@@ -91,6 +94,19 @@ def health() -> dict:
 @app.get("/domande")
 def domande() -> dict:
     return {"domande": load_golden_questions()}
+
+
+@app.get("/demo/schema")
+def demo_schema() -> dict:
+    return catalogo()
+
+
+@app.get("/demo/sample/{vista}")
+def demo_sample(vista: str) -> dict:
+    dati = campione(vista)
+    if dati is None:
+        raise HTTPException(status_code=404, detail="Vista non trovata.")
+    return dati
 
 
 @app.post("/chiedi")
@@ -190,6 +206,7 @@ def chiedi(payload: Domanda, request: Request):
         "risposta_testo": testo,
         "spiegazione": interp.get("spiegazione", ""),
         "sql": sql,
+        "viste_usate": viste_usate(sql),
         "colonne": ris.colonne,
         "righe": ris.righe,
         "n_righe": ris.n_righe,

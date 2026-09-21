@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { chiedi, getDomande, getHealth } from './api'
+import DatiDemo from './DatiDemo'
 import ResultView from './ResultView'
 import type { Health, Risposta } from './types'
 import './widget.css'
@@ -15,6 +16,8 @@ export interface WidgetProps {
   apiBase?: string
   /** nome dello store fittizio, usato in sottotitolo e placeholder */
   storeName?: string
+  /** layout largo a due colonne con il pannello "Dati della demo" accanto alla chat */
+  pannelloDati?: boolean
 }
 
 interface Turno {
@@ -34,6 +37,7 @@ export default function Widget({
   maxEsempi = 6,
   apiBase,
   storeName = 'Acme Srl',
+  pannelloDati = false,
 }: WidgetProps) {
   const sub =
     sottotitolo ??
@@ -46,6 +50,9 @@ export default function Widget({
   const [esempiAperti, setEsempiAperti] = useState(false)
   const ultimoTurnoRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const latoRef = useRef<HTMLElement>(null)
+  const [apriToken, setApriToken] = useState(0)
+  const [evidenza, setEvidenza] = useState<string[] | null>(null)
 
   // Nota: la landing rimonta il Widget con key={verticale}, quindi al cambio
   // verticale lo stato riparte pulito senza bisogno di azzerarlo qui.
@@ -57,6 +64,14 @@ export default function Widget({
       .then(setSalute)
       .catch(() => setSalute(null))
   }, [maxEsempi, apiBase])
+
+  // il campo cresce con il testo, fino al tetto fissato in CSS (max-height)
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [bozza])
 
   useEffect(() => {
     ultimoTurnoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -76,8 +91,20 @@ export default function Widget({
       risposta = { tipo: 'errore', errore: 'Richiesta interrotta.' }
     }
     setTurni((t) => t.map((x) => (x.id === id ? { ...x, stato: 'done', risposta } : x)))
+    setEvidenza(null)
     setInCorso(false)
     inputRef.current?.focus()
+  }
+
+  const ultimaRisposta = [...turni].reverse().find((t) => t.risposta?.tipo === 'risultato')?.risposta
+  const usate =
+    evidenza ?? (ultimaRisposta?.tipo === 'risultato' ? (ultimaRisposta.viste_usate ?? []) : [])
+
+  function mostraDati(viste: string[]) {
+    // il pulsante sta sulla risposta cliccata, non per forza l'ultima
+    setEvidenza(viste)
+    setApriToken((n) => n + 1)
+    latoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
   const servizioKo = salute !== null && !salute.llm_configurato
@@ -106,7 +133,9 @@ export default function Widget({
   }, [salute])
 
   return (
-    <div className="cbi-root" role="region" aria-label="Assistente Conversational BI">
+    <div
+      className={'cbi-root' + (pannelloDati ? ' cbi-wide' : '')}
+      role="region" aria-label="Assistente Conversational BI">
       <header className="cbi-header">
         <div>
           <p className="cbi-title">{titolo}</p>
@@ -124,91 +153,105 @@ export default function Widget({
         </span>
       </header>
 
-      <div className="cbi-body" aria-live="polite" aria-busy={inCorso}>
-        {turni.length === 0 && (
-          <>
-            <p className="cbi-hint">
-              Prova con un esempio{dataRif ? ` (dati congelati al ${dataRif})` : ''}:
-            </p>
-            {chips}
-          </>
-        )}
+      <div className="cbi-cols">
+        <div className="cbi-chat">
+          <div className="cbi-body" aria-live="polite" aria-busy={inCorso}>
+            {turni.length === 0 && (
+              <>
+                <p className="cbi-hint">
+                  Prova con un esempio{dataRif ? ` (dati congelati al ${dataRif})` : ''}:
+                </p>
+                {chips}
+              </>
+            )}
 
-        {turni.map((t, i) => (
-          <div
-            className="cbi-turn"
-            key={t.id}
-            ref={i === turni.length - 1 ? ultimoTurnoRef : undefined}
-          >
-            <div className="cbi-q">{t.domanda}</div>
-            {t.stato === 'loading' || !t.risposta ? (
-              <div className="cbi-a">
-                <span className="cbi-loading">
-                  <span className="cbi-spinner" aria-hidden="true" />
-                  Interrogo i dati…
-                </span>
+            {turni.map((t, i) => (
+              <div
+                className="cbi-turn"
+                key={t.id}
+                ref={i === turni.length - 1 ? ultimoTurnoRef : undefined}
+              >
+                <div className="cbi-q">{t.domanda}</div>
+                {t.stato === 'loading' || !t.risposta ? (
+                  <div className="cbi-a">
+                    <span className="cbi-loading">
+                      <span className="cbi-spinner" aria-hidden="true" />
+                      Interrogo i dati…
+                    </span>
+                  </div>
+                ) : (
+                  <ResultView
+                    risposta={t.risposta}
+                    onMostraDati={pannelloDati ? mostraDati : undefined}
+                  />
+                )}
               </div>
-            ) : (
-              <ResultView risposta={t.risposta} />
+            ))}
+
+            {servizioKo && (
+              <p className="cbi-info cbi-error">
+                Il servizio non è configurato correttamente (LLM assente). Riprova più tardi.
+              </p>
             )}
           </div>
-        ))}
 
-        {servizioKo && (
-          <p className="cbi-info cbi-error">
-            Il servizio non è configurato correttamente (LLM assente). Riprova più tardi.
-          </p>
-        )}
-      </div>
+          <footer className="cbi-footer">
+            {turni.length > 0 && esempi.length > 0 && (
+              <div className="cbi-esempi">
+                <button
+                  type="button"
+                  className="cbi-esempi-toggle"
+                  aria-expanded={esempiAperti}
+                  onClick={() => setEsempiAperti((v) => !v)}
+                >
+                  {esempiAperti ? '▾' : '▸'} Esempi di domande
+                </button>
+                {esempiAperti && chips}
+              </div>
+            )}
 
-      <footer className="cbi-footer">
-        {turni.length > 0 && esempi.length > 0 && (
-          <div className="cbi-esempi">
-            <button
-              type="button"
-              className="cbi-esempi-toggle"
-              aria-expanded={esempiAperti}
-              onClick={() => setEsempiAperti((v) => !v)}
-            >
-              {esempiAperti ? '▾' : '▸'} Esempi di domande
-            </button>
-            {esempiAperti && chips}
-          </div>
-        )}
-
-        <form
-          className="cbi-form"
-          onSubmit={(e) => {
-            e.preventDefault()
-            invia(bozza)
-          }}
-        >
-          <textarea
-            ref={inputRef}
-            className="cbi-input"
-            placeholder={`Scrivi una domanda sui dati di ${storeName}…`}
-            value={bozza}
-            rows={1}
-            maxLength={500}
-            disabled={inCorso || servizioKo}
-            onChange={(e) => setBozza(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+            <form
+              className="cbi-form"
+              onSubmit={(e) => {
                 e.preventDefault()
                 invia(bozza)
-              }
-            }}
-          />
-          <button className="cbi-send" type="submit" disabled={inCorso || servizioKo || !bozza.trim()}>
-            {inCorso ? '…' : 'Chiedi'}
-          </button>
-        </form>
-        <div className="cbi-cta">
-          <a href={ctaHref} target="_top" rel="noopener">
-            {ctaLabel} →
-          </a>
+              }}
+            >
+              <textarea
+                ref={inputRef}
+                className="cbi-input"
+                placeholder={`Scrivi una domanda sui dati di ${storeName}…`}
+                value={bozza}
+                rows={pannelloDati ? 2 : 1}
+                maxLength={500}
+                disabled={inCorso || servizioKo}
+                onChange={(e) => setBozza(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    invia(bozza)
+                  }
+                }}
+              />
+              <button className="cbi-send" type="submit" disabled={inCorso || servizioKo || !bozza.trim()}>
+                {inCorso ? '…' : 'Chiedi'}
+              </button>
+            </form>
+            <div className="cbi-cta">
+              <a href={ctaHref} target="_top" rel="noopener">
+                {ctaLabel} →
+              </a>
+            </div>
+          </footer>
         </div>
-      </footer>
+
+        {pannelloDati && (
+          <aside className="cbi-side" ref={latoRef} aria-label="Dati della demo">
+            <p className="cbi-side-title">Dati della demo</p>
+            <DatiDemo apiBase={apiBase} usate={usate} apriToken={apriToken} />
+          </aside>
+        )}
+      </div>
     </div>
   )
 }

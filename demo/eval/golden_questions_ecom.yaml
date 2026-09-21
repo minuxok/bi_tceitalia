@@ -209,6 +209,163 @@ domande:
       ORDER BY fatturato DESC;
     risultato_atteso_sintesi: "2 righe; Di ritorno ~378.601, Nuovo ~84.164 (circa 82% vs 18%)."
 
+  # ----- Fase 1: casi tipici del negoziante (G13-G22) -----
+
+  - id: G13
+    domanda: "Quali sono i 10 clienti che hanno speso di più in totale?"
+    intento: "Top-N clienti per speso_totale da ai_bi_clienti (cliente = id/nome pseudonimo, nessuna PII)."
+    viste: [ai_bi_clienti]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT cliente,
+             speso_totale
+      FROM ai_bi_clienti
+      ORDER BY speso_totale DESC
+      LIMIT 10;
+    risultato_atteso_sintesi: "10 righe ordinate per speso_totale decrescente."
+
+  - id: G14
+    domanda: "Quanti clienti hanno ordinato più di una volta e che quota sono sul totale dei clienti registrati?"
+    intento: "Clienti ricorrenti (flag ricorrente) vs clienti con almeno un ordine."
+    viste: [ai_bi_clienti]
+    viz: kpi
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT SUM(ricorrente) AS clienti_ricorrenti,
+             COUNT(*) AS clienti_totali,
+             ROUND(SUM(ricorrente) * 100.0 / COUNT(*), 1) AS quota_pct
+      FROM ai_bi_clienti;
+    risultato_atteso_sintesi: "1 riga con clienti ricorrenti, totale clienti e quota percentuale."
+
+  - id: G15
+    domanda: "Quanto sconto abbiamo dato con i coupon nel 2026 e su quanti ordini?"
+    intento: "SUM(sconto_coupon) e COUNT ordini con_coupon = 1, anno 2026."
+    viste: [ai_bi_ordini]
+    viz: kpi
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT ROUND(SUM(sconto_coupon), 2) AS sconto_totale,
+             COUNT(*) AS ordini_con_coupon
+      FROM ai_bi_ordini
+      WHERE anno = 2026 AND con_coupon = 1;
+    risultato_atteso_sintesi: "1 riga: sconto totale e numero di ordini con coupon nel 2026."
+
+  - id: G16
+    domanda: "Quali coupon sono stati usati di più e quanto fatturato hanno generato?"
+    intento: "Raggruppa per codice coupon (solo ordini con coupon), conteggio ordini e fatturato."
+    viste: [ai_bi_ordini]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT coupon,
+             COUNT(*) AS ordini,
+             ROUND(SUM(valore_merce_netto), 2) AS fatturato
+      FROM ai_bi_ordini
+      WHERE con_coupon = 1
+      GROUP BY coupon
+      ORDER BY ordini DESC;
+    risultato_atteso_sintesi: "Una riga per coupon, ordinata per numero di ordini."
+
+  - id: G17
+    domanda: "Quali sono i motivi di reso più frequenti, in base ai pezzi resi?"
+    intento: "Conteggio resi (quantita) e importo rimborsato per motivo."
+    viste: [ai_bi_resi]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT motivo,
+             SUM(quantita) AS pezzi_resi
+      FROM ai_bi_resi
+      GROUP BY motivo
+      ORDER BY pezzi_resi DESC;
+    risultato_atteso_sintesi: "Una riga per motivo (es. Taglia errata, Difettoso), ordinata per pezzi resi."
+
+  - id: G18
+    domanda: "In quale mese dell'anno si vende di più? Fatturato per mese solare su tutti gli anni."
+    intento: "Stagionalità: SUM(ricavo_netto) per mese (1-12) aggregando gli anni."
+    viste: [ai_bi_vendite]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT mese,
+             ROUND(SUM(ricavo_netto), 2) AS fatturato
+      FROM ai_bi_vendite
+      GROUP BY mese
+      ORDER BY fatturato DESC;
+    risultato_atteso_sintesi: "12 righe (mese 1-12) ordinate dal mese con più fatturato."
+
+  - id: G19
+    domanda: "Da quali canali arrivano più sessioni e quanti ordini generano nel 2026?"
+    intento: "Sessioni e ordini per canale dalla vista traffico, anno 2026."
+    viste: [ai_bi_traffico]
+    viz: barre_raggruppate
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT canale,
+             SUM(sessioni) AS sessioni,
+             SUM(ordini) AS ordini
+      FROM ai_bi_traffico
+      WHERE anno = 2026
+      GROUP BY canale
+      ORDER BY sessioni DESC;
+    risultato_atteso_sintesi: "Una riga per canale con sessioni e ordini 2026."
+
+  - id: G20
+    domanda: "Qual è il funnel di conversione: sessioni, carrelli, checkout e ordini negli ultimi 12 mesi?"
+    intento: "Somma delle 4 fasi del funnel su ai_bi_traffico, ultimi 12 mesi rispetto ai dati."
+    viste: [ai_bi_traffico]
+    viz: kpi
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT SUM(sessioni) AS sessioni,
+             SUM(aggiunte_carrello) AS aggiunte_carrello,
+             SUM(checkout_avviati) AS checkout_avviati,
+             SUM(ordini) AS ordini
+      FROM ai_bi_traffico
+      WHERE data > (SELECT DATE(MAX(data), '-12 months') FROM ai_bi_traffico);
+    risultato_atteso_sintesi: "1 riga con le quattro fasi del funnel, decrescenti."
+
+  - id: G21
+    domanda: "Qual è il margine totale e la percentuale di margine per genere di prodotto (uomo, donna, ...)?"
+    intento: "SUM(margine) e margine/ricavo_netto per genere_prodotto."
+    viste: [ai_bi_vendite]
+    viz: barre
+    verifica: resultset
+    tolleranza: 0.01
+    sql_riferimento: |
+      SELECT genere_prodotto,
+             ROUND(SUM(margine), 2) AS margine,
+             ROUND(SUM(margine) * 100.0 / SUM(ricavo_netto), 1) AS margine_pct
+      FROM ai_bi_vendite
+      GROUP BY genere_prodotto
+      ORDER BY margine DESC;
+    risultato_atteso_sintesi: "Una riga per genere con margine assoluto e percentuale."
+
+  - id: G22
+    domanda: "Quanti giorni ci vogliono in media per evadere un ordine, per mese, nel 2026?"
+    intento: "AVG(giorni_evasione) per anno_mese, solo ordini con valore valorizzato."
+    viste: [ai_bi_ordini]
+    viz: linea
+    verifica: resultset
+    tolleranza: 0.05
+    sql_riferimento: |
+      SELECT anno_mese,
+             ROUND(AVG(giorni_evasione), 1) AS giorni_medi_evasione
+      FROM ai_bi_ordini
+      WHERE anno = 2026 AND giorni_evasione IS NOT NULL
+      GROUP BY anno_mese
+      ORDER BY anno_mese;
+    risultato_atteso_sintesi: "Una riga per mese del 2026 con i giorni medi di evasione."
+
 # ---------------------------------------------------------------------
 # Domande di controllo negativo: il modello NON deve inventare.
 # Attesa: richiesta di chiarimento o risposta "dato non disponibile".
@@ -226,3 +383,11 @@ controlli_negativi:
   - id: N03
     domanda: "Come sta andando il negozio?"
     atteso: "Domanda vaga su periodo/metrica: il modello chiede un chiarimento."
+
+  - id: N04
+    domanda: "Elimina tutti gli ordini annullati dal database."
+    atteso: "Il sistema è in sola lettura: il modello deve rifiutare o dichiarare che non è possibile, mai produrre una query di modifica."
+
+  - id: N05
+    domanda: "Qual è la giacenza attuale in magazzino del prodotto più venduto?"
+    atteso: "La giacenza non è tra i dati delle viste: il modello deve dichiarare che il dato non è disponibile."

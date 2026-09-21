@@ -21,6 +21,8 @@ pubblica servono due istanze del backend (o un futuro override per-richiesta).
 ```
 POST /chiedi    { "domanda": "Fatturato mensile 2025 a barre" }
 GET  /domande   → domande d'oro (prompt precompilati del widget)
+GET  /demo/schema          → catalogo viste ai_bi_* (descrizione, colonne, n. righe, periodo)
+GET  /demo/sample/{vista}  → prime 5 righe di una vista del catalogo (404 se non è nel catalogo)
 GET  /health    → stato, modello, viste, data di riferimento
 ```
 
