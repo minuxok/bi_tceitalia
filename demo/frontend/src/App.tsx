@@ -274,7 +274,7 @@ function DemoSection() {
   const v = VERTICALS.find((x) => x.id === vid) ?? VERTICALE_DEFAULT
   return (
     <section className="lp-section is-alt" id="demo">
-      <div className="lp-wrap lp-demo-inner">
+      <div className="lp-wrap lp-demo-inner lp-demo-wide">
         <h2 className="lp-h2">Provala adesso</h2>
         <p className="lp-lead">
           Stesso motore, più mondi. Scegli il tipo di attività e fai una domanda ai suoi dati.
@@ -306,6 +306,7 @@ function DemoSection() {
             key={v.id}
             apiBase={v.apiBase}
             storeName={v.store}
+            pannelloDati
             ctaHref="#contatto"
             ctaLabel="Prenota una demo"
           />

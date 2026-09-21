@@ -22,6 +22,8 @@ export interface RispostaRisultato {
   risposta_testo: string
   spiegazione: string
   sql: string
+  /** viste ai_bi_* citate nella query (assente su backend più vecchi) */
+  viste_usate?: string[]
   colonne: string[]
   righe: Cella[][]
   n_righe: number
@@ -63,4 +65,24 @@ export interface Health {
   modello: string
   data_riferimento: string
   viste: string[]
+}
+
+export interface DemoVista {
+  nome: string
+  descrizione: string
+  colonne: { nome: string; tipo: string }[]
+  n_righe: number | null
+}
+
+export interface DemoSchema {
+  verticale: string
+  data_riferimento: string
+  periodo: { da: string; a: string; vista: string } | null
+  viste: DemoVista[]
+}
+
+export interface DemoSample {
+  vista: string
+  colonne: string[]
+  righe: Cella[][]
 }

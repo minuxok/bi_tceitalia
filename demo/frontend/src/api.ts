@@ -1,4 +1,4 @@
-import type { ElencoDomande, Health, Risposta } from './types'
+import type { DemoSample, DemoSchema, ElencoDomande, Health, Risposta } from './types'
 
 // In sviluppo: '/api' -> proxy Vite -> http://127.0.0.1:8000
 // In produzione: passare VITE_API_BASE al build (es. '/bi/api' o URL assoluto).
@@ -31,6 +31,18 @@ export async function getDomande(base?: string): Promise<string[]> {
   if (!res.ok) throw new Error(`Impossibile caricare le domande di esempio (${res.status}).`)
   const dato = await json<ElencoDomande>(res)
   return dato.domande ?? []
+}
+
+export async function getDemoSchema(base?: string): Promise<DemoSchema> {
+  const res = await fetch(`${norm(base)}/demo/schema`)
+  if (!res.ok) throw new Error(`Catalogo dati non disponibile (${res.status}).`)
+  return json<DemoSchema>(res)
+}
+
+export async function getDemoSample(vista: string, base?: string): Promise<DemoSample> {
+  const res = await fetch(`${norm(base)}/demo/sample/${encodeURIComponent(vista)}`)
+  if (!res.ok) throw new Error(`Righe di esempio non disponibili (${res.status}).`)
+  return json<DemoSample>(res)
 }
 
 /**
