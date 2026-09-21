@@ -151,7 +151,7 @@ termini:
 
 note_per_il_modello:
   - Usa SEMPRE e solo le viste con prefisso ai_bi_. Non esistono altre tabelle.
-  - Non usare la colonna email: e' PII e non e' esposta nelle viste.
+  - "Non usare la colonna email: e' PII e non e' esposta nelle viste."
   - Per le date usa le funzioni SQLite (date(), strftime()), non sintassi Postgres.
   - Il termine "fatturato" senza altra specifica = imponibile (ricavo_netto),
     NON IVA inclusa e NON al netto dei resi.
