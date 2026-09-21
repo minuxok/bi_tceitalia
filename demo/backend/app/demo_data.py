@@ -23,6 +23,13 @@ from .semantic import (
 from .validator import valida_e_normalizza
 
 CAMPIONE_RIGHE = 5
+# Colonne con dati di contatto: restano nella vista (il motore le vede), ma non
+# vengono mostrate nelle righe di esempio del pannello pubblico. Vale per ogni
+# verticale, anche se oggi solo "gest" ne ha.
+COLONNE_CONTATTO = {
+    "email", "pec", "telefono", "cellulare", "partita_iva", "codice_fiscale",
+    "indirizzo", "cap", "iban",
+}
 _TTL_S = 24 * 3600 if settings.db_engine == "sqlite" else 300
 
 _cache: dict[str, tuple[float, Any]] = {}
@@ -97,7 +104,12 @@ def campione(vista: str) -> dict | None:
 
     def produci() -> dict:
         ris = esegui(valida_e_normalizza(f"SELECT * FROM {vista} LIMIT {CAMPIONE_RIGHE}"))
-        return {"vista": vista, "colonne": ris.colonne, "righe": ris.righe}
+        tenute = [i for i, c in enumerate(ris.colonne) if c.lower() not in COLONNE_CONTATTO]
+        return {
+            "vista": vista,
+            "colonne": [ris.colonne[i] for i in tenute],
+            "righe": [[r[i] for i in tenute] for r in ris.righe],
+        }
 
     return _cached(f"campione:{vista}", produci)
 

@@ -29,6 +29,12 @@ for nome in viste:
     j = r.json()
     check(f"sample {nome}: 200, <=5 righe", r.status_code == 200 and 0 < len(j["righe"]) <= 5)
 
+from app.demo_data import COLONNE_CONTATTO
+
+for nome in viste:
+    cols = c.get(f"/demo/sample/{nome}").json()["colonne"]
+    check(f"sample {nome}: nessuna colonna di contatto", not any(x.lower() in COLONNE_CONTATTO for x in cols))
+
 for cattivo in ("sqlite_master", "clienti", "x;drop table y", "ai_bi_inesistente"):
     check(f"sample '{cattivo}' rifiutato (404)", c.get(f"/demo/sample/{cattivo}").status_code == 404)
 
