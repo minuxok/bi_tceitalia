@@ -81,10 +81,10 @@ function Hero() {
       <div className="lp-wrap">
         <div>
           <p className="lp-eyebrow">Business intelligence conversazionale</p>
-          <h1>Fai domande ai tuoi dati aziendali. In italiano.</h1>
+          <h1>Le risposte che aspetti da Excel o dal gestionale, le hai subito.</h1>
           <p className="lp-hero-sub">
-            Il tuo gestionale o e-commerce risponde con numeri, tabelle e grafici in pochi
-            secondi. In sola lettura, senza esportare niente.
+            Fai una domanda in italiano, senza sintassi tecnica: arriva un numero, una tabella
+            o un grafico in pochi secondi. In sola lettura, senza esportare niente.
           </p>
           <div className="lp-hero-actions">
             <a className="lp-btn lp-btn-primary" href={MAILTO}>
